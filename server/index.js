@@ -224,6 +224,45 @@ app.post('/api/email/send-batch', async (req, res) => {
 })
 
 // Stripe: Create checkout session
+// Stripe: Combined session endpoint (checkout + portal)
+app.post('/api/stripe/session', async (req, res) => {
+  try {
+    const { type, userId, tier, successUrl, cancelUrl, returnUrl } = req.body
+
+    if (!type) {
+      return res.status(400).json({ error: 'Session type is required (checkout or portal)' })
+    }
+
+    if (type === 'checkout') {
+      if (!userId || !tier || !successUrl || !cancelUrl) {
+        return res.status(400).json({
+          error: 'Missing required fields for checkout: userId, tier, successUrl, cancelUrl'
+        })
+      }
+
+      const session = await createCheckoutSession(userId, tier, successUrl, cancelUrl)
+      return res.json({ url: session.url })
+    }
+
+    if (type === 'portal') {
+      if (!userId || !returnUrl) {
+        return res.status(400).json({
+          error: 'Missing required fields for portal: userId, returnUrl'
+        })
+      }
+
+      const session = await createPortalSession(userId, returnUrl)
+      return res.json({ url: session.url })
+    }
+
+    return res.status(400).json({ error: 'Invalid session type. Must be "checkout" or "portal"' })
+  } catch (error) {
+    console.error('Session creation error:', error)
+    res.status(500).json({ error: error.message })
+  }
+})
+
+// Stripe: Create checkout session (legacy endpoint, kept for backwards compatibility)
 app.post('/api/stripe/create-checkout-session', async (req, res) => {
   try {
     const { userId, tier, email } = req.body
@@ -240,7 +279,7 @@ app.post('/api/stripe/create-checkout-session', async (req, res) => {
   }
 })
 
-// Stripe: Create customer portal session
+// Stripe: Create customer portal session (legacy endpoint, kept for backwards compatibility)
 app.post('/api/stripe/create-portal-session', async (req, res) => {
   try {
     const { userId } = req.body
@@ -257,7 +296,37 @@ app.post('/api/stripe/create-portal-session', async (req, res) => {
   }
 })
 
-// Stripe: Get subscription info
+// Stripe: Combined data endpoint (subscription + usage)
+app.get('/api/stripe/data', async (req, res) => {
+  try {
+    const { userId, type } = req.query
+
+    if (!userId) {
+      return res.status(400).json({ error: 'User ID is required' })
+    }
+
+    if (!type) {
+      return res.status(400).json({ error: 'Type is required (subscription or usage)' })
+    }
+
+    if (type === 'subscription') {
+      const info = await getSubscriptionInfo(userId)
+      return res.json(info)
+    }
+
+    if (type === 'usage') {
+      const usage = await checkUsageLimit(userId)
+      return res.json(usage)
+    }
+
+    return res.status(400).json({ error: 'Invalid type. Must be "subscription" or "usage"' })
+  } catch (error) {
+    console.error('Error getting stripe data:', error)
+    res.status(500).json({ error: error.message })
+  }
+})
+
+// Stripe: Get subscription info (legacy endpoint, kept for backwards compatibility)
 app.get('/api/stripe/subscription/:userId', async (req, res) => {
   try {
     const { userId } = req.params
@@ -274,7 +343,7 @@ app.get('/api/stripe/subscription/:userId', async (req, res) => {
   }
 })
 
-// Stripe: Check usage limits
+// Stripe: Check usage limits (legacy endpoint, kept for backwards compatibility)
 app.get('/api/stripe/usage/:userId', async (req, res) => {
   try {
     const { userId } = req.params
