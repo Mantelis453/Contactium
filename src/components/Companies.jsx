@@ -9,7 +9,6 @@ export default function Companies() {
   const [activities, setActivities] = useState([])
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
-  const [importing, setImporting] = useState(false)
 
   // Pagination
   const [offset, setOffset] = useState(0)
@@ -24,9 +23,6 @@ export default function Companies() {
   const [maxEmployees, setMaxEmployees] = useState('')
   const [minRating, setMinRating] = useState('')
   const [maxRating, setMaxRating] = useState('')
-
-  // CSV Upload
-  const [csvFile, setCsvFile] = useState(null)
 
   useEffect(() => {
     setOffset(0)
@@ -97,80 +93,6 @@ export default function Companies() {
     }
   }
 
-  const handleFileChange = (e) => {
-    const file = e.target.files[0]
-    if (file && file.type === 'text/csv') {
-      setCsvFile(file)
-    } else {
-      alert('Please select a valid CSV file')
-    }
-  }
-
-  const parseCSV = (text) => {
-    const lines = text.split('\n')
-    const headers = lines[0].split(',').map(h => h.trim())
-    const companies = []
-
-    for (let i = 1; i < lines.length; i++) {
-      if (!lines[i].trim()) continue
-
-      const values = lines[i].split(',').map(v => v.trim())
-      const company = {}
-
-      headers.forEach((header, index) => {
-        company[header] = values[index] || null
-      })
-
-      if (company.company_name) {
-        companies.push(company)
-      }
-    }
-
-    return companies
-  }
-
-  const handleUploadCSV = async () => {
-    if (!csvFile) {
-      alert('Please select a CSV file first')
-      return
-    }
-
-    try {
-      setImporting(true)
-      const text = await csvFile.text()
-      const companiesData = parseCSV(text)
-
-      if (companiesData.length === 0) {
-        alert('No valid companies found in CSV file')
-        return
-      }
-
-      const response = await fetch(`${API_URL}/api/companies/import`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          companies: companiesData
-        })
-      })
-
-      const data = await response.json()
-
-      if (response.ok) {
-        alert(`Successfully imported ${data.imported} companies!`)
-        setCsvFile(null)
-        loadCompanies()
-        loadActivities()
-      } else {
-        alert(`Error importing companies: ${data.error}`)
-      }
-    } catch (error) {
-      console.error('Error uploading CSV:', error)
-      alert('Error uploading CSV file')
-    } finally {
-      setImporting(false)
-    }
-  }
-
   const handleDelete = async (id) => {
     if (!confirm('Are you sure you want to delete this company?')) return
 
@@ -212,28 +134,6 @@ export default function Companies() {
     <div className="page-container">
       <div className="page-header">
         <h2 className="page-title">Companies</h2>
-        <div className="csv-upload-section">
-          <input
-            type="file"
-            accept=".csv"
-            onChange={handleFileChange}
-            id="csv-file-input"
-            style={{ display: 'none' }}
-          />
-          <label htmlFor="csv-file-input" className="secondary-btn">
-            Choose CSV File
-          </label>
-          {csvFile && <span className="file-name">{csvFile.name}</span>}
-          {csvFile && (
-            <button
-              onClick={handleUploadCSV}
-              disabled={importing}
-              className="primary-btn"
-            >
-              {importing ? 'Importing...' : 'Import CSV'}
-            </button>
-          )}
-        </div>
       </div>
 
       <div className="filters-section">
@@ -299,7 +199,7 @@ export default function Companies() {
 
       {companies.length === 0 ? (
         <div className="empty-state">
-          <p>No companies found. {searchQuery || activityFilter !== 'all' || minEmployees || maxEmployees ? 'Try adjusting your filters.' : 'Import a CSV file to get started!'}</p>
+          <p>No companies found. {searchQuery || activityFilter !== 'all' || minEmployees || maxEmployees ? 'Try adjusting your filters.' : 'No companies available.'}</p>
         </div>
       ) : (
         <div className="companies-table-container">
