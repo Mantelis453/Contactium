@@ -1,0 +1,142 @@
+.main-container {
+  min-height: 100vh;
+  background: #f5f7fa;
+}
+
+.navbar {
+  background: white;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  padding: 16px 0;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.nav-content {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.logo {
+  font-size: 22px;
+  font-weight: 700;
+  color: #1e293b;
+  letter-spacing: -0.5px;
+}
+
+.nav-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.nav-btn {
+  padding: 8px 14px;
+  background: transparent;
+  color: #64748b;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  text-decoration: none;
+  transition: all 0.2s;
+}
+
+.nav-btn:hover {
+  background: #f1f5f9;
+  color: #1e293b;
+}
+
+.nav-btn.active {
+  background: #1e293b;
+  color: white;
+}
+
+.plan-badge {
+  display: flex;
+  align-items: center;
+  padding: 8px 14px;
+  border: 1px solid;
+  border-radius: 6px;
+  text-decoration: none;
+  transition: all 0.2s;
+  cursor: pointer;
+  margin-left: 12px;
+}
+
+.plan-badge:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.08);
+}
+
+.plan-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.plan-name {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  line-height: 1;
+}
+
+.plan-usage {
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1;
+  opacity: 0.8;
+}
+
+.user-email {
+  color: #4a5568;
+  font-size: 13px;
+  margin-left: 8px;
+}
+
+.signout-btn {
+  padding: 8px 16px;
+  background: #ef4444;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.signout-btn:hover {
+  background: #dc2626;
+}
+
+.main-content {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 40px 20px;
+}
+
+@media (max-width: 768px) {
+  .nav-content {
+    gap: 8px;
+  }
+
+  .user-email {
+    display: none;
+  }
+
+  .nav-btn {
+    font-size: 12px;
+    padding: 6px 10px;
+  }
+}

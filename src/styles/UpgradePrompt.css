@@ -1,0 +1,103 @@
+.upgrade-prompt {
+  background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+  border: 2px solid #cbd5e0;
+  padding: 28px 32px;
+  border-radius: 8px;
+  margin: 24px 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 24px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.upgrade-content {
+  flex: 1;
+  text-align: left;
+}
+
+.upgrade-prompt h3 {
+  font-size: 20px;
+  font-weight: 700;
+  margin: 0 0 8px 0;
+  color: #1e293b;
+}
+
+.upgrade-prompt p {
+  font-size: 14px;
+  margin: 0 0 16px 0;
+  color: #64748b;
+  line-height: 1.6;
+}
+
+.upgrade-feature {
+  background: white;
+  padding: 14px 16px;
+  border-radius: 6px;
+  border-left: 3px solid #3b82f6;
+  margin-bottom: 0;
+}
+
+.upgrade-feature strong {
+  display: block;
+  font-size: 12px;
+  margin-bottom: 6px;
+  color: #3b82f6;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.upgrade-feature p {
+  margin: 0;
+  font-size: 13px;
+  color: #475569;
+  line-height: 1.5;
+}
+
+.upgrade-button {
+  background: #3b82f6;
+  color: white;
+  border: none;
+  padding: 10px 24px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.upgrade-button:hover {
+  background: #2563eb;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+}
+
+.upgrade-button:active {
+  transform: translateY(0);
+}
+
+@media (max-width: 768px) {
+  .upgrade-prompt {
+    flex-direction: column;
+    padding: 20px;
+    text-align: center;
+  }
+
+  .upgrade-content {
+    text-align: center;
+  }
+
+  .upgrade-prompt h3 {
+    font-size: 18px;
+  }
+
+  .upgrade-prompt p {
+    font-size: 13px;
+  }
+
+  .upgrade-button {
+    width: 100%;
+    padding: 12px 20px;
+  }
+}
