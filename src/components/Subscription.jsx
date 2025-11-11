@@ -58,15 +58,17 @@ export default function Subscription() {
     try {
       setCheckingOut(true)
 
-      const response = await fetch(`${API_URL}/api/stripe/create-checkout-session`, {
+      const response = await fetch(`${API_URL}/api/stripe/session`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
+          type: 'checkout',
           userId: user.id,
           tier,
-          email: user.email
+          successUrl: `${window.location.origin}/settings?success=true`,
+          cancelUrl: `${window.location.origin}/settings`
         })
       })
 
@@ -88,13 +90,15 @@ export default function Subscription() {
     try {
       setCheckingOut(true)
 
-      const response = await fetch(`${API_URL}/api/stripe/create-portal-session`, {
+      const response = await fetch(`${API_URL}/api/stripe/session`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          userId: user.id
+          type: 'portal',
+          userId: user.id,
+          returnUrl: `${window.location.origin}/settings`
         })
       })
 

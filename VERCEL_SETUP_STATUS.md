@@ -1,193 +1,121 @@
 # Vercel Setup Status
 
-## ✅ Completed
+## ✅ COMPLETED - Ready for Deployment!
 
 ### 1. Configuration Files
-- **vercel.json**: Vercel configuration with routing and environment variables
+- **vercel.json**: Vercel configuration with routing (optimized for 12 function limit)
 - **.env.example**: Template for environment variables
 - **DEPLOYMENT.md**: Comprehensive deployment guide
 
-### 2. API Structure Created
+### 2. Complete API Structure (12 Serverless Functions)
 ```
 api/
 ├── _lib/
 │   ├── supabase.js         ✅ Supabase client and helpers
-│   ├── emailService.js     ✅ Email service (copied from server/)
-│   └── stripeService.js    ✅ Stripe service (copied from server/)
+│   ├── emailService.js     ✅ Email service
+│   └── stripeService.js    ✅ Stripe service
 ├── companies/
 │   ├── index.js            ✅ GET /api/companies (with filters)
-│   ├── activities.js       ✅ GET /api/companies/activities
+│   ├── activities.js       ✅ GET /api/companies/activities (687 activities)
 │   ├── import.js           ✅ POST /api/companies/import
 │   └── [id].js             ✅ DELETE /api/companies/:id
-└── email/
-    └── test.js             ✅ POST /api/email/test
+├── email/
+│   ├── test.js             ✅ POST /api/email/test
+│   ├── send.js             ✅ POST /api/email/send
+│   └── send-batch.js       ✅ POST /api/email/send-batch
+├── stripe/
+│   ├── webhook.js          ✅ POST /api/stripe/webhook (raw body handling)
+│   ├── session.js          ✅ POST /api/stripe/session (combined checkout + portal)
+│   ├── subscription/
+│   │   └── [userId].js     ✅ GET /api/stripe/subscription/:userId
+│   └── usage/
+│       └── [userId].js     ✅ GET /api/stripe/usage/:userId
+└── health.js               ✅ GET /api/health
 ```
 
-## ⚠️ Needs Completion
+**Total: 12 serverless functions** (Vercel free tier limit)
 
-### Missing API Endpoints
+### 3. Key Optimizations
 
-You need to create these remaining serverless function files:
+#### Vercel Free Tier Compliance
+- Combined checkout and portal sessions into single `session.js` endpoint
+- Removed test-upgrade.js (testing only, not needed in production)
+- Total of exactly 12 functions (Vercel free tier limit)
 
-#### Email Routes
-- `api/email/send.js` - POST /api/email/send
-- `api/email/send-batch.js` - POST /api/email/send-batch
+#### Session Endpoint Usage
+The `api/stripe/session.js` handles both Stripe Checkout and Customer Portal:
 
-#### Stripe Routes
-- `api/stripe/webhook.js` - POST /api/stripe/webhook
-- `api/stripe/create-checkout-session.js` - POST /api/stripe/create-checkout-session
-- `api/stripe/create-portal-session.js` - POST /api/stripe/create-portal-session
-- `api/stripe/subscription/[userId].js` - GET /api/stripe/subscription/:userId
-- `api/stripe/usage/[userId].js` - GET /api/stripe/usage/:userId
-- `api/stripe/test-upgrade.js` - POST /api/stripe/test-upgrade (optional, for testing)
-
-#### Other
-- `api/health.js` - GET /api/health
-
-### How to Create Missing Endpoints
-
-Each file should follow this pattern:
-
+**Checkout Session** (upgrade subscription):
 ```javascript
-import { supabase, getUserSettings } from '../_lib/supabase.js'
-import { /* import needed services */ } from '../_lib/emailService.js'
-
-export default async function handler(req, res) {
-  // Enable CORS
-  res.setHeader('Access-Control-Allow-Origin', '*')
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS')
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
-
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end()
-  }
-
-  if (req.method !== 'EXPECTED_METHOD') {
-    return res.status(405).json({ error: 'Method not allowed' })
-  }
-
-  try {
-    // Your endpoint logic here (copy from server/index.js)
-
-    res.json({ success: true, data: result })
-  } catch (error) {
-    console.error('Error:', error)
-    res.status(500).json({ error: error.message })
-  }
+POST /api/stripe/session
+{
+  "type": "checkout",
+  "userId": "user-id",
+  "tier": "starter",
+  "successUrl": "https://yourapp.com/settings?success=true",
+  "cancelUrl": "https://yourapp.com/settings"
 }
 ```
 
-### Reference Implementation
-
-Look at `server/index.js` for the complete logic of each endpoint. You need to:
-1. Copy the route handler logic
-2. Wrap it in the Vercel serverless function format
-3. Replace Express-specific code (`req.body`, `req.params`, `req.query`) with Vercel equivalents
-
-### Example: Email Send Endpoint
-
-Create `api/email/send.js`:
-
+**Portal Session** (manage subscription):
 ```javascript
-import { getUserSettings } from '../_lib/supabase.js'
-import { createTransporter, sendEmail } from '../_lib/emailService.js'
-import { checkUsageLimit, incrementEmailCount } from '../_lib/stripeService.js'
-
-export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*')
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
-
-  if (req.method === 'OPTIONS') return res.status(200).end()
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' })
-  }
-
-  try {
-    const { userId, to, subject, text, html } = req.body
-
-    if (!userId) {
-      return res.status(400).json({ error: 'User ID is required' })
-    }
-
-    // Check usage limits
-    const usageLimitCheck = await checkUsageLimit(userId)
-    if (!usageLimitCheck.canSend) {
-      return res.status(403).json({
-        error: 'Monthly email limit reached',
-        limit: usageLimitCheck.emailLimit,
-        sent: usageLimitCheck.emailsSent,
-        tier: usageLimitCheck.tier
-      })
-    }
-
-    const settings = await getUserSettings(userId)
-    const transporter = createTransporter({
-      smtp_host: settings.smtp_host,
-      smtp_port: settings.smtp_port,
-      smtp_username: settings.smtp_username,
-      smtp_password: settings.smtp_password,
-      smtp_secure: settings.smtp_secure,
-    })
-
-    const result = await sendEmail(
-      transporter,
-      { to, subject, text, html },
-      { sender_name: settings.sender_name, sender_email: settings.sender_email }
-    )
-
-    if (result.success) {
-      await incrementEmailCount(userId, 1)
-    }
-
-    res.json(result)
-  } catch (error) {
-    console.error('Error sending email:', error)
-    res.status(500).json({ error: error.message })
-  }
+POST /api/stripe/session
+{
+  "type": "portal",
+  "userId": "user-id",
+  "returnUrl": "https://yourapp.com/settings"
 }
 ```
 
-## Quick Start After Completion
+## Ready to Deploy!
 
-1. **Test Locally**:
-   - Continue using `npm run server` for local development
-   - The Express server in `server/index.js` works as-is
+### Next Steps
 
-2. **Deploy to Vercel**:
+1. **Resolve Git Secrets Issue** (if not done already):
    ```bash
-   vercel
+   git reset --soft HEAD~3
+   git add .
+   git commit -m "Add Vercel serverless API endpoints and deployment configuration"
+   git push -f origin master
    ```
 
-3. **Set Environment Variables** in Vercel Dashboard
+2. **Deploy to Vercel**:
+   - Import your GitHub repository at [vercel.com](https://vercel.com)
+   - Or use CLI: `vercel --prod`
 
-4. **Test Production**: Visit your Vercel URL
+3. **Configure Environment Variables** in Vercel Dashboard:
+   - `VITE_SUPABASE_URL`
+   - `VITE_SUPABASE_PUBLISHABLE_KEY`
+   - `SUPABASE_SERVICE_KEY`
+   - `STRIPE_SECRET_KEY`
+   - `STRIPE_PUBLISHABLE_KEY`
+   - `STRIPE_WEBHOOK_SECRET`
+   - `VITE_API_URL` (your Vercel deployment URL)
 
-## Alternative: Simpler Approach
+4. **Set up Stripe Webhooks**:
+   - Go to Stripe Dashboard → Webhooks
+   - Add endpoint: `https://your-app.vercel.app/api/stripe/webhook`
+   - Select events: `checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted`
+   - Copy webhook secret to Vercel environment variables
 
-If creating individual endpoints is too tedious, you can use a catch-all API route:
+5. **Test Deployment**:
+   - Visit your Vercel URL
+   - Test company filters and activities (687 activities)
+   - Test email sending
+   - Test subscription upgrade flow
 
-Create `api/[...path].js`:
-```javascript
-import app from '../server/app.js' // Export your Express app from server/index.js
+## Local Development
 
-export default app
+Continue using the Express server for local development:
+```bash
+npm run server  # Backend on :3001
+npm run dev     # Frontend on :5173
 ```
 
-This approach wraps your entire Express server as a Vercel serverless function, but may have limitations with larger apps.
+The `server/` directory remains unchanged and fully functional for local development.
 
-## Next Steps
+## Documentation
 
-1. Choose your approach (individual endpoints or catch-all)
-2. Complete the missing API endpoints
-3. Test locally with the existing Express server
-4. Deploy to Vercel
-5. Configure environment variables in Vercel Dashboard
-6. Set up Stripe webhooks pointing to your Vercel URL
-7. Test the deployed application
-
-## Need Help?
-
-- Reference: `server/index.js` for endpoint logic
-- Documentation: Read `DEPLOYMENT.md` for full deployment steps
-- Vercel Docs: https://vercel.com/docs/functions/serverless-functions
+- **Full deployment guide**: See `DEPLOYMENT.md`
+- **API reference**: See `server/index.js` for endpoint logic
+- **Vercel docs**: https://vercel.com/docs/functions/serverless-functions
