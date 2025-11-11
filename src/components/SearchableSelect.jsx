@@ -9,11 +9,6 @@ export default function SearchableSelect({ options, value, onChange, placeholder
   // Ensure options is an array
   const safeOptions = Array.isArray(options) ? options : []
 
-  // Debug logging
-  useEffect(() => {
-    console.log('SearchableSelect - options received:', safeOptions.length)
-  }, [safeOptions.length])
-
   const filteredOptions = safeOptions.filter(option =>
     option && option.toLowerCase().includes(searchTerm.toLowerCase())
   )

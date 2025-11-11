@@ -55,11 +55,9 @@ export default function Companies() {
 
   const loadActivities = async () => {
     try {
-      console.log('Loading activities from:', `${API_URL}/api/companies/activities`)
       const response = await fetch(`${API_URL}/api/companies/activities`)
       const data = await response.json()
 
-      console.log('Activities response:', response.ok, 'Activities count:', data.activities?.length)
       if (response.ok) {
         setActivities(data.activities || [])
       }
