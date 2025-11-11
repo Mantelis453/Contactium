@@ -209,3 +209,19 @@
     min-width: 800px;
   }
 }
+
+/* Load More Section */
+.load-more-section {
+  display: flex;
+  justify-content: center;
+  padding: 32px 20px;
+  border-top: 1px solid #e2e8f0;
+  margin-top: 24px;
+}
+
+.load-more-btn {
+  min-width: 200px;
+  padding: 12px 32px;
+  font-size: 14px;
+  font-weight: 500;
+}

@@ -15,59 +15,56 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { activity, minEmployees, maxEmployees, minRating, maxRating, search } = req.query
+    const { activity, minEmployees, maxEmployees, minRating, maxRating, search, offset = 0, limit = 100 } = req.query
 
-    // Fetch all companies in batches to overcome 1000 row limit
-    let allData = []
-    let start = 0
-    const batchSize = 1000
+    const startOffset = parseInt(offset)
+    const pageLimit = parseInt(limit)
 
-    while (true) {
-      let query = supabase
-        .from('companies')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .range(start, start + batchSize - 1)
+    // Build the query
+    let query = supabase
+      .from('companies')
+      .select('*', { count: 'exact' })
+      .order('created_at', { ascending: false })
 
-      // Apply filters
-      if (activity && activity !== 'all') {
-        query = query.eq('activity', activity)
-      }
-
-      if (minEmployees) {
-        query = query.gte('employees', parseInt(minEmployees))
-      }
-
-      if (maxEmployees) {
-        query = query.lte('employees', parseInt(maxEmployees))
-      }
-
-      if (minRating) {
-        query = query.gte('scorist_rating', parseFloat(minRating))
-      }
-
-      if (maxRating) {
-        query = query.lte('scorist_rating', parseFloat(maxRating))
-      }
-
-      if (search) {
-        query = query.or(`company_name.ilike.%${search}%,company_code.ilike.%${search}%,email.ilike.%${search}%`)
-      }
-
-      const { data, error } = await query
-
-      if (error) throw error
-
-      if (!data || data.length === 0) break
-
-      allData = allData.concat(data)
-
-      if (data.length < batchSize) break
-
-      start += batchSize
+    // Apply filters
+    if (activity && activity !== 'all') {
+      query = query.eq('activity', activity)
     }
 
-    res.json({ companies: allData, total: allData.length })
+    if (minEmployees) {
+      query = query.gte('employees', parseInt(minEmployees))
+    }
+
+    if (maxEmployees) {
+      query = query.lte('employees', parseInt(maxEmployees))
+    }
+
+    if (minRating) {
+      query = query.gte('scorist_rating', parseFloat(minRating))
+    }
+
+    if (maxRating) {
+      query = query.lte('scorist_rating', parseFloat(maxRating))
+    }
+
+    if (search) {
+      query = query.or(`company_name.ilike.%${search}%,company_code.ilike.%${search}%,email.ilike.%${search}%`)
+    }
+
+    // Apply pagination
+    query = query.range(startOffset, startOffset + pageLimit - 1)
+
+    const { data, error, count } = await query
+
+    if (error) throw error
+
+    res.json({
+      companies: data || [],
+      total: count || 0,
+      offset: startOffset,
+      limit: pageLimit,
+      hasMore: count > startOffset + pageLimit
+    })
   } catch (error) {
     console.error('Error fetching companies:', error)
     res.status(500).json({ error: error.message })

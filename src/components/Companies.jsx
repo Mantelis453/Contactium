@@ -8,7 +8,14 @@ export default function Companies() {
   const [companies, setCompanies] = useState([])
   const [activities, setActivities] = useState([])
   const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [importing, setImporting] = useState(false)
+
+  // Pagination
+  const [offset, setOffset] = useState(0)
+  const [total, setTotal] = useState(0)
+  const [hasMore, setHasMore] = useState(false)
+  const limit = 100
 
   // Filters
   const [searchQuery, setSearchQuery] = useState('')
@@ -22,27 +29,44 @@ export default function Companies() {
   const [csvFile, setCsvFile] = useState(null)
 
   useEffect(() => {
-    loadCompanies()
+    setOffset(0)
+    setCompanies([])
+    loadCompanies(true)
     loadActivities()
   }, [activityFilter, minEmployees, maxEmployees, minRating, maxRating, searchQuery])
 
-  const loadCompanies = async () => {
+  const loadCompanies = async (reset = false) => {
     try {
-      setLoading(true)
+      const currentOffset = reset ? 0 : offset
+      if (reset) {
+        setLoading(true)
+      } else {
+        setLoadingMore(true)
+      }
+
       const params = new URLSearchParams({
         ...(activityFilter !== 'all' && { activity: activityFilter }),
         ...(minEmployees && { minEmployees }),
         ...(maxEmployees && { maxEmployees }),
         ...(minRating && { minRating }),
         ...(maxRating && { maxRating }),
-        ...(searchQuery && { search: searchQuery })
+        ...(searchQuery && { search: searchQuery }),
+        offset: currentOffset.toString(),
+        limit: limit.toString()
       })
 
       const response = await fetch(`${API_URL}/api/companies?${params}`)
       const data = await response.json()
 
       if (response.ok) {
-        setCompanies(data.companies || [])
+        if (reset) {
+          setCompanies(data.companies || [])
+        } else {
+          setCompanies(prev => [...prev, ...(data.companies || [])])
+        }
+        setTotal(data.total || 0)
+        setHasMore(data.hasMore || false)
+        setOffset(currentOffset + limit)
       } else {
         console.error('Error loading companies:', data.error)
       }
@@ -50,6 +74,13 @@ export default function Companies() {
       console.error('Error loading companies:', error)
     } finally {
       setLoading(false)
+      setLoadingMore(false)
+    }
+  }
+
+  const loadMore = () => {
+    if (!loadingMore && hasMore) {
+      loadCompanies(false)
     }
   }
 
@@ -261,7 +292,9 @@ export default function Companies() {
       </div>
 
       <div className="companies-stats">
-        <span className="stat-item">Total: {companies.length} companies</span>
+        <span className="stat-item">
+          Showing {companies.length} of {total} companies
+        </span>
       </div>
 
       {companies.length === 0 ? (
@@ -317,6 +350,18 @@ export default function Companies() {
               ))}
             </tbody>
           </table>
+
+          {hasMore && (
+            <div className="load-more-section">
+              <button
+                onClick={loadMore}
+                disabled={loadingMore}
+                className="primary-btn load-more-btn"
+              >
+                {loadingMore ? 'Loading...' : `Load More (${total - companies.length} remaining)`}
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>
