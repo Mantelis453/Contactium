@@ -34,8 +34,8 @@ export default function Subscription() {
 
       // Load subscription info and usage in parallel
       const [subscriptionRes, usageRes] = await Promise.all([
-        fetch(`${API_URL}/api/stripe/subscription/${user.id}`),
-        fetch(`${API_URL}/api/stripe/usage/${user.id}`)
+        fetch(`${API_URL}/api/stripe/data?userId=${user.id}&type=subscription`),
+        fetch(`${API_URL}/api/stripe/data?userId=${user.id}&type=usage`)
       ])
 
       if (subscriptionRes.ok) {
