@@ -93,26 +93,6 @@ export default function Companies() {
     }
   }
 
-  const handleDelete = async (id) => {
-    if (!confirm('Are you sure you want to delete this company?')) return
-
-    try {
-      const response = await fetch(`${API_URL}/api/companies/${id}`, {
-        method: 'DELETE'
-      })
-
-      if (response.ok) {
-        loadCompanies()
-      } else {
-        const data = await response.json()
-        alert(`Error deleting company: ${data.error}`)
-      }
-    } catch (error) {
-      console.error('Error deleting company:', error)
-      alert('Error deleting company')
-    }
-  }
-
   const clearFilters = () => {
     setSearchQuery('')
     setActivityFilter('all')
@@ -214,7 +194,6 @@ export default function Companies() {
                 <th>Email</th>
                 <th>Phone</th>
                 <th>Address</th>
-                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -238,14 +217,6 @@ export default function Companies() {
                   </td>
                   <td>{company.phone || '-'}</td>
                   <td className="address-cell">{company.address || '-'}</td>
-                  <td>
-                    <button
-                      onClick={() => handleDelete(company.id)}
-                      className="delete-btn"
-                    >
-                      Delete
-                    </button>
-                  </td>
                 </tr>
               ))}
             </tbody>
