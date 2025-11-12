@@ -6,52 +6,19 @@ import '../styles/Subscription.css'
 
 export default function Subscription() {
   const { user } = useAuth()
-  const { refreshSubscription } = useSubscriptionContext()
-  const [loading, setLoading] = useState(true)
-  const [subscription, setSubscription] = useState(null)
-  const [usage, setUsage] = useState(null)
+  const { subscription, usage, loading: contextLoading, refreshSubscription } = useSubscriptionContext()
   const [checkingOut, setCheckingOut] = useState(false)
 
   useEffect(() => {
-    if (user?.id) {
-      loadSubscriptionData()
-
-      // Check if user just returned from successful checkout
-      const params = new URLSearchParams(window.location.search)
-      if (params.get('success') === 'true') {
-        // Refresh subscription context after successful upgrade
-        setTimeout(() => {
-          refreshSubscription()
-        }, 2000) // Give Stripe webhook time to process
-      }
+    // Check if user just returned from successful checkout
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('success') === 'true') {
+      // Refresh subscription context after successful upgrade
+      setTimeout(() => {
+        refreshSubscription()
+      }, 2000) // Give Stripe webhook time to process
     }
-  }, [user])
-
-  const loadSubscriptionData = async () => {
-    try {
-      setLoading(true)
-
-      // Load subscription info and usage in parallel
-      const [subscriptionRes, usageRes] = await Promise.all([
-        fetch(`${API_URL}/stripe-data?userId=${user.id}&type=subscription`),
-        fetch(`${API_URL}/stripe-data?userId=${user.id}&type=usage`)
-      ])
-
-      if (subscriptionRes.ok) {
-        const subData = await subscriptionRes.json()
-        setSubscription(subData)
-      }
-
-      if (usageRes.ok) {
-        const usageData = await usageRes.json()
-        setUsage(usageData)
-      }
-    } catch (error) {
-      console.error('Error loading subscription data:', error)
-    } finally {
-      setLoading(false)
-    }
-  }
+  }, [])
 
   const handleUpgrade = async (tier) => {
     try {
@@ -120,7 +87,7 @@ export default function Subscription() {
     }
   }
 
-  if (loading) {
+  if (contextLoading) {
     return (
       <div className="settings-section">
         <div className="section-header">
@@ -133,9 +100,15 @@ export default function Subscription() {
 
   const tier = subscription?.tier || 'free'
   const status = subscription?.status || 'active'
-  const emailsSent = usage?.emailsSent || 0
-  const emailLimit = usage?.emailLimit || 10
-  const remaining = usage?.remaining || 0
+
+  // Get limits from subscription or use defaults
+  const emailLimit = subscription?.email_limit || 10
+  const contactLimit = subscription?.contact_limit || 25
+  const campaignLimit = subscription?.campaign_limit || 1
+
+  // Usage data (to be implemented with actual tracking)
+  const emailsSent = 0 // TODO: Track actual usage
+  const remaining = emailLimit - emailsSent
   const usagePercentage = (emailsSent / emailLimit) * 100
 
   const tierInfo = {
