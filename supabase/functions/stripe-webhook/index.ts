@@ -1,10 +1,16 @@
 import { corsHeaders } from '../_shared/cors.ts'
 import { createSupabaseClient } from '../_shared/supabase.ts'
-import Stripe from 'stripe'
+import Stripe from 'https://esm.sh/stripe@14.21.0?target=deno'
 
 const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY') || '', {
   apiVersion: '2024-11-20.acacia',
   httpClient: Stripe.createFetchHttpClient(),
+})
+
+// Prevent event loop errors
+globalThis.addEventListener('unhandledrejection', (event) => {
+  console.error('Unhandled rejection:', event.reason)
+  event.preventDefault()
 })
 
 const webhookSecret = Deno.env.get('STRIPE_WEBHOOK_SECRET')
