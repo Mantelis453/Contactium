@@ -151,9 +151,11 @@ export async function sendCampaign(campaignId, userId) {
       const email = emailsToSend[i]
       const result = sendResults.results[i]
 
+      console.log(`Updating recipient ${email.recipientId}:`, result?.success ? 'sent' : 'failed')
+
       if (result && result.success) {
         // Email sent successfully
-        const { error: updateErr } = await supabase
+        const { data: updateData, error: updateErr } = await supabase
           .from('campaign_recipients')
           .update({
             status: 'sent',
@@ -164,23 +166,33 @@ export async function sendCampaign(campaignId, userId) {
             }
           })
           .eq('id', email.recipientId)
+          .select()
 
         if (updateErr) {
           console.error('Error updating recipient to sent:', updateErr)
+          console.error('Recipient ID:', email.recipientId)
+          console.error('Update data:', { status: 'sent', sent_at: new Date().toISOString() })
+        } else {
+          console.log(`✓ Successfully updated recipient ${email.recipientId} to sent`)
+          console.log('Updated data:', updateData)
         }
       } else {
         // Email failed to send
-        const { error: updateErr } = await supabase
+        const { data: updateData, error: updateErr } = await supabase
           .from('campaign_recipients')
           .update({
             status: 'failed'
           })
           .eq('id', email.recipientId)
+          .select()
 
         if (updateErr) {
           console.error('Error updating recipient to failed:', updateErr)
+          console.error('Recipient ID:', email.recipientId)
         } else {
-          console.log(`Marked recipient ${email.recipientId} as failed:`, result?.error || 'Unknown error')
+          console.log(`✓ Successfully updated recipient ${email.recipientId} to failed`)
+          console.log('Error reason:', result?.error || 'Unknown error')
+          console.log('Updated data:', updateData)
         }
       }
     }

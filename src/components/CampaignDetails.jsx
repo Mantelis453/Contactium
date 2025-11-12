@@ -68,8 +68,14 @@ export default function CampaignDetails() {
     setSendingCampaign(true)
     try {
       const result = await sendCampaign(campaign.id, user.id)
+
+      // Wait a moment for database to update
+      await new Promise(resolve => setTimeout(resolve, 1000))
+
+      // Reload campaign details to show updated stats
+      await loadCampaignDetails()
+
       alert(`Campaign sent! ${result.sent} emails sent, ${result.failed} failed.`)
-      loadCampaignDetails()
     } catch (error) {
       console.error('Error sending campaign:', error)
       alert(`Failed to send campaign: ${error.message}`)
