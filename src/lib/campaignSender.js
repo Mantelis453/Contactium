@@ -53,11 +53,11 @@ export async function sendCampaign(campaignId, userId) {
         status,
         companies (
           id,
-          name,
+          company_name,
           email,
-          industry,
-          company_size,
-          location
+          activity,
+          employees,
+          address
         )
       `)
       .eq('campaign_id', campaignId)
@@ -110,13 +110,13 @@ export async function sendCampaign(campaignId, userId) {
           to: recipient.companies.email,
           subject: personalizedEmail.subject,
           html: personalizedEmail.body.replace(/\n/g, '<br>'), // Convert newlines to HTML
-          companyName: recipient.companies.name
+          companyName: recipient.companies.company_name
         })
       } catch (error) {
-        console.error(`Failed to generate email for ${recipient.companies.name}:`, error)
+        console.error(`Failed to generate email for ${recipient.companies.company_name}:`, error)
         failedGenerations.push({
           recipientId: recipient.id,
-          companyName: recipient.companies.name,
+          companyName: recipient.companies.company_name,
           error: error.message
         })
       }

@@ -473,8 +473,8 @@ export async function generatePersonalizedEmail({
     const prompt = createEmailPrompt({
       category,
       description,
-      companyName: company.name,
-      companyIndustry: company.industry,
+      companyName: company.company_name,
+      companyIndustry: company.activity,
       senderName,
       senderCompany,
       senderTitle,

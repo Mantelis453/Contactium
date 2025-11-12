@@ -43,11 +43,11 @@ export default function CampaignDetails() {
           personalized_email,
           companies (
             id,
-            name,
+            company_name,
             email,
-            industry,
-            company_size,
-            location
+            activity,
+            employees,
+            address
           )
         `)
         .eq('campaign_id', id)
@@ -231,7 +231,7 @@ export default function CampaignDetails() {
               <tr>
                 <th>Company</th>
                 <th>Email</th>
-                <th>Industry</th>
+                <th>Activity</th>
                 <th>Status</th>
                 <th>Sent At</th>
               </tr>
@@ -239,9 +239,9 @@ export default function CampaignDetails() {
             <tbody>
               {recipients.map((recipient) => (
                 <tr key={recipient.id}>
-                  <td><strong>{recipient.companies?.name}</strong></td>
+                  <td><strong>{recipient.companies?.company_name}</strong></td>
                   <td>{recipient.companies?.email}</td>
-                  <td>{recipient.companies?.industry || '-'}</td>
+                  <td>{recipient.companies?.activity || '-'}</td>
                   <td>
                     <span
                       className={`status-badge ${recipient.status}`}

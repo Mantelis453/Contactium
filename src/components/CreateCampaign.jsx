@@ -5,6 +5,7 @@ import { useAuth } from '../hooks/useAuth'
 import { generateBatchEmails } from '../lib/batchEmailGenerator'
 import { sendCampaign } from '../lib/campaignSender'
 import SearchableSelect from './SearchableSelect'
+import API_URL from '../config/api'
 import '../styles/CreateCampaign.css'
 
 export default function CreateCampaign() {
@@ -42,15 +43,13 @@ export default function CreateCampaign() {
 
   const [emailApproved, setEmailApproved] = useState(false)
 
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001'
-
   useEffect(() => {
     loadActivities()
   }, [])
 
   const loadActivities = async () => {
     try {
-      const response = await fetch(`${API_URL}/api/companies/activities`)
+      const response = await fetch(`${API_URL}/companies-activities`)
       const data = await response.json()
       if (response.ok) {
         setActivities(data.activities || [])
