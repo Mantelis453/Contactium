@@ -58,20 +58,14 @@ export default function Campaigns() {
     }
   }
 
-  const deleteCampaign = async (id) => {
-    if (!confirm('Are you sure you want to delete this campaign?')) return
-
-    try {
-      const { error } = await supabase
-        .from('campaigns')
-        .delete()
-        .eq('id', id)
-
-      if (error) throw error
-      loadCampaigns()
-    } catch (error) {
-      console.error('Error deleting campaign:', error)
-      alert('Failed to delete campaign')
+  const checkCampaignExpiration = (createdAt) => {
+    const createdDate = new Date(createdAt)
+    const now = new Date()
+    const daysSinceCreation = Math.floor((now - createdDate) / (1000 * 60 * 60 * 24))
+    return {
+      isExpired: daysSinceCreation >= 30,
+      daysRemaining: 30 - daysSinceCreation,
+      daysSinceCreation
     }
   }
 
@@ -139,58 +133,84 @@ export default function Campaigns() {
         </div>
       ) : (
         <div className="campaigns-grid">
-          {filteredCampaigns.map((campaign) => (
-            <div key={campaign.id} className="campaign-card">
-              <div
-                className="campaign-header"
-                onClick={() => navigate(`/campaigns/${campaign.id}`)}
-                style={{ cursor: 'pointer' }}
-              >
-                <h3>{campaign.name}</h3>
-                <span className={`status-badge ${campaign.status}`}>{campaign.status}</span>
-              </div>
-              <div
-                className="campaign-body"
-                onClick={() => navigate(`/campaigns/${campaign.id}`)}
-                style={{ cursor: 'pointer' }}
-              >
-                <p><strong>Category:</strong> {campaign.category || 'General'}</p>
-                <p><strong>Send Date:</strong> {formatDate(campaign.send_date)}</p>
-                <p><strong>Emails Sent:</strong> {campaign.emails_sent || 0}</p>
-                {campaign.emails_opened > 0 && <p><strong>Opened:</strong> {campaign.emails_opened}</p>}
-                {campaign.emails_replied > 0 && <p><strong>Replied:</strong> {campaign.emails_replied}</p>}
-                {campaign.description && (
-                  <p className="campaign-description">{campaign.description}</p>
-                )}
-              </div>
-              <div className="campaign-footer">
-                {(campaign.status === 'not-started' || campaign.status === 'failed') && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      handleSendCampaign(campaign.id, campaign.name)
-                    }}
-                    className="primary-btn"
-                    disabled={sendingCampaignId === campaign.id}
-                  >
-                    {sendingCampaignId === campaign.id ? 'Sending...' : 'Send Now'}
-                  </button>
-                )}
-                {campaign.status === 'running' && (
-                  <span className="sending-indicator">Sending...</span>
-                )}
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    deleteCampaign(campaign.id)
-                  }}
-                  className="danger-btn"
+          {filteredCampaigns.map((campaign) => {
+            const expirationInfo = checkCampaignExpiration(campaign.created_at)
+            return (
+              <div key={campaign.id} className="campaign-card">
+                <div
+                  className="campaign-header"
+                  onClick={() => navigate(`/campaigns/${campaign.id}`)}
+                  style={{ cursor: 'pointer' }}
                 >
-                  Delete
-                </button>
+                  <h3>{campaign.name}</h3>
+                  <span className={`status-badge ${campaign.status}`}>{campaign.status}</span>
+                </div>
+                <div
+                  className="campaign-body"
+                  onClick={() => navigate(`/campaigns/${campaign.id}`)}
+                  style={{ cursor: 'pointer' }}
+                >
+                  <p><strong>Category:</strong> {campaign.category || 'General'}</p>
+                  <p><strong>Send Date:</strong> {formatDate(campaign.send_date)}</p>
+                  <p><strong>Emails Sent:</strong> {campaign.emails_sent || 0}</p>
+                  {campaign.emails_opened > 0 && <p><strong>Opened:</strong> {campaign.emails_opened}</p>}
+                  {campaign.emails_replied > 0 && <p><strong>Replied:</strong> {campaign.emails_replied}</p>}
+                  {campaign.description && (
+                    <p className="campaign-description">{campaign.description}</p>
+                  )}
+
+                  {/* Expiration Warning */}
+                  {expirationInfo.isExpired ? (
+                    <div style={{
+                      marginTop: '0.5rem',
+                      padding: '0.5rem',
+                      backgroundColor: '#fee',
+                      border: '1px solid #dc3545',
+                      borderRadius: '4px',
+                      fontSize: '0.85rem',
+                      color: '#721c24'
+                    }}>
+                      ⚠️ Expired - will be auto-deleted
+                    </div>
+                  ) : expirationInfo.daysRemaining <= 7 && (
+                    <div style={{
+                      marginTop: '0.5rem',
+                      padding: '0.5rem',
+                      backgroundColor: '#fff3cd',
+                      border: '1px solid #ffc107',
+                      borderRadius: '4px',
+                      fontSize: '0.85rem',
+                      color: '#856404'
+                    }}>
+                      ⏳ Expires in {expirationInfo.daysRemaining} {expirationInfo.daysRemaining === 1 ? 'day' : 'days'}
+                    </div>
+                  )}
+                </div>
+                <div className="campaign-footer">
+                  {!expirationInfo.isExpired && (campaign.status === 'not-started' || campaign.status === 'failed') && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleSendCampaign(campaign.id, campaign.name)
+                      }}
+                      className="primary-btn"
+                      disabled={sendingCampaignId === campaign.id}
+                    >
+                      {sendingCampaignId === campaign.id ? 'Sending...' : 'Send Now'}
+                    </button>
+                  )}
+                  {campaign.status === 'running' && (
+                    <span className="sending-indicator">Sending...</span>
+                  )}
+                  {expirationInfo.isExpired && (
+                    <span style={{ fontSize: '0.9rem', color: '#6c757d' }}>
+                      Campaign expired
+                    </span>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
     </div>

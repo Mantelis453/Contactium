@@ -84,22 +84,11 @@ export default function CampaignDetails() {
     }
   }
 
-  const handleDeleteCampaign = async () => {
-    if (!confirm('Are you sure you want to delete this campaign?')) return
-
-    try {
-      const { error } = await supabase
-        .from('campaigns')
-        .delete()
-        .eq('id', id)
-
-      if (error) throw error
-      alert('Campaign deleted successfully')
-      navigate('/campaigns')
-    } catch (error) {
-      console.error('Error deleting campaign:', error)
-      alert('Failed to delete campaign')
-    }
+  const checkCampaignExpiration = (createdAt) => {
+    const createdDate = new Date(createdAt)
+    const now = new Date()
+    const daysSinceCreation = Math.floor((now - createdDate) / (1000 * 60 * 60 * 24))
+    return daysSinceCreation >= 30
   }
 
   const formatDate = (dateString) => {
@@ -121,7 +110,8 @@ export default function CampaignDetails() {
       'paused': '#ffc107',
       'failed': '#dc3545',
       'pending': '#6c757d',
-      'sent': '#198754'
+      'sent': '#198754',
+      'expired': '#dc3545'
     }
     return colors[status] || '#6c757d'
   }
@@ -149,6 +139,10 @@ export default function CampaignDetails() {
     )
   }
 
+  const isExpired = checkCampaignExpiration(campaign.created_at)
+  const daysSinceCreation = Math.floor((new Date() - new Date(campaign.created_at)) / (1000 * 60 * 60 * 24))
+  const daysRemaining = 30 - daysSinceCreation
+
   return (
     <div className="page-container">
       <div className="campaign-details-header">
@@ -157,6 +151,17 @@ export default function CampaignDetails() {
         </button>
         <h2 className="page-title">{campaign.name}</h2>
       </div>
+
+      {/* Expiration Warning */}
+      {isExpired ? (
+        <div className="warning-box" style={{ marginBottom: '1rem', backgroundColor: '#fee', borderColor: '#dc3545', color: '#721c24' }}>
+          ⚠️ This campaign has expired and will be automatically deleted. Campaigns are kept for 30 days after creation.
+        </div>
+      ) : daysRemaining <= 7 && (
+        <div className="info-box" style={{ marginBottom: '1rem', backgroundColor: '#fff3cd', borderColor: '#ffc107', color: '#856404' }}>
+          ℹ️ This campaign will expire in {daysRemaining} {daysRemaining === 1 ? 'day' : 'days'}. Campaigns are automatically deleted 30 days after creation.
+        </div>
+      )}
 
       {/* Campaign Info */}
       <div className="details-section">
@@ -266,7 +271,7 @@ export default function CampaignDetails() {
 
       {/* Actions */}
       <div className="details-actions">
-        {(campaign.status === 'not-started' || campaign.status === 'failed') && (
+        {!isExpired && (campaign.status === 'not-started' || campaign.status === 'failed') && (
           <button
             onClick={handleSendCampaign}
             className="primary-btn"
@@ -275,9 +280,11 @@ export default function CampaignDetails() {
             {sendingCampaign ? 'Sending...' : 'Send Campaign Now'}
           </button>
         )}
-        <button onClick={handleDeleteCampaign} className="danger-btn">
-          Delete Campaign
-        </button>
+        {isExpired && (
+          <div className="info-box" style={{ textAlign: 'center', margin: '1rem 0' }}>
+            This campaign has expired and cannot be sent. It will be automatically deleted soon.
+          </div>
+        )}
       </div>
     </div>
   )
