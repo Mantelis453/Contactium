@@ -43,35 +43,37 @@ export function SubscriptionProvider({ children }) {
 
     try {
       // Query Stripe data directly using the wrapper
-      const { data: subData, error: subError } = await supabase
+      const { data, error: subError } = await supabase
         .rpc('get_my_subscription')
-        .maybeSingle()
+        .single()
 
       if (subError) {
         console.error('Error loading subscription:', subError)
         setSubscription({ tier: 'free' })
-      } else if (subData) {
-        console.log('Subscription loaded:', subData)
+      } else if (data) {
+        console.log('Subscription loaded:', data)
         setSubscription({
-          tier: subData.tier || 'free',
-          status: subData.status,
-          subscription_id: subData.subscription_id,
-          email_limit: subData.email_limit,
-          contact_limit: subData.contact_limit,
-          campaign_limit: subData.campaign_limit,
-          current_period_end: subData.current_period_end
+          tier: data.tier || 'free',
+          status: data.status,
+          subscription_id: data.subscription_id,
+          email_limit: data.email_limit,
+          contact_limit: data.contact_limit,
+          campaign_limit: data.campaign_limit,
+          current_period_end: data.current_period_end
         })
+
+        // TODO: Add usage tracking if needed
+        setUsage({ canSend: true, remaining: data.email_limit || 10 })
       } else {
         // No subscription found, user is on free plan
         setSubscription({ tier: 'free' })
+        setUsage({ canSend: true, remaining: 10 })
       }
-
-      // TODO: Add usage tracking if needed
-      setUsage({ canSend: true, remaining: subData?.email_limit || 10 })
     } catch (error) {
       console.error('Error loading subscription data:', error)
       // Default to free plan on error
       setSubscription({ tier: 'free' })
+      setUsage({ canSend: true, remaining: 10 })
     } finally {
       setLoading(false)
     }
