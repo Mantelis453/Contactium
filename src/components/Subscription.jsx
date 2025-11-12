@@ -13,10 +13,28 @@ export default function Subscription() {
     // Check if user just returned from successful checkout
     const params = new URLSearchParams(window.location.search)
     if (params.get('success') === 'true') {
-      // Refresh subscription context after successful upgrade
-      setTimeout(() => {
-        refreshSubscription()
-      }, 2000) // Give Stripe webhook time to process
+      console.log('[Subscription] Payment successful, starting polling for updates...')
+
+      // Poll for subscription updates every 2 seconds for up to 30 seconds
+      let attempts = 0
+      const maxAttempts = 15
+
+      const pollInterval = setInterval(async () => {
+        attempts++
+        console.log(`[Subscription] Poll attempt ${attempts}/${maxAttempts}`)
+
+        await refreshSubscription()
+
+        if (attempts >= maxAttempts) {
+          clearInterval(pollInterval)
+          console.log('[Subscription] Polling stopped - max attempts reached')
+        }
+      }, 2000)
+
+      // Clear URL params after starting polling
+      window.history.replaceState({}, '', window.location.pathname)
+
+      return () => clearInterval(pollInterval)
     }
   }, [])
 
