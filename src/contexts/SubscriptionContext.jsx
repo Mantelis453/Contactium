@@ -1,7 +1,6 @@
 import { createContext, useContext, useState, useEffect } from 'react'
 import { useAuth } from '../hooks/useAuth'
 import { supabase } from '../lib/supabase'
-import API_URL from '../config/api'
 
 const SubscriptionContext = createContext()
 
@@ -43,22 +42,36 @@ export function SubscriptionProvider({ children }) {
     if (!user?.id) return
 
     try {
-      const [subscriptionRes, usageRes] = await Promise.all([
-        fetch(`${API_URL}/stripe-data?userId=${user.id}&type=subscription`),
-        fetch(`${API_URL}/stripe-data?userId=${user.id}&type=usage`)
-      ])
+      // Query Stripe data directly using the wrapper
+      const { data: subData, error: subError } = await supabase
+        .rpc('get_my_subscription')
+        .maybeSingle()
 
-      if (subscriptionRes.ok) {
-        const subData = await subscriptionRes.json()
-        setSubscription(subData)
+      if (subError) {
+        console.error('Error loading subscription:', subError)
+        setSubscription({ tier: 'free' })
+      } else if (subData) {
+        console.log('Subscription loaded:', subData)
+        setSubscription({
+          tier: subData.tier || 'free',
+          status: subData.status,
+          subscription_id: subData.subscription_id,
+          email_limit: subData.email_limit,
+          contact_limit: subData.contact_limit,
+          campaign_limit: subData.campaign_limit,
+          current_period_end: subData.current_period_end
+        })
+      } else {
+        // No subscription found, user is on free plan
+        setSubscription({ tier: 'free' })
       }
 
-      if (usageRes.ok) {
-        const usageData = await usageRes.json()
-        setUsage(usageData)
-      }
+      // TODO: Add usage tracking if needed
+      setUsage({ canSend: true, remaining: subData?.email_limit || 10 })
     } catch (error) {
       console.error('Error loading subscription data:', error)
+      // Default to free plan on error
+      setSubscription({ tier: 'free' })
     } finally {
       setLoading(false)
     }
