@@ -72,15 +72,19 @@ export default function Subscription() {
         })
       })
 
+      const data = await response.json()
+
       if (!response.ok) {
-        throw new Error('Failed to create checkout session')
+        // Show detailed error message from server
+        const errorMsg = data.details || data.error || 'Failed to create checkout session'
+        console.error('Checkout session error:', data)
+        throw new Error(errorMsg)
       }
 
-      const { url } = await response.json()
-      window.location.href = url
+      window.location.href = data.url
     } catch (error) {
       console.error('Error creating checkout session:', error)
-      alert('Failed to start checkout. Please try again.')
+      alert(`Failed to start checkout: ${error.message}`)
     } finally {
       setCheckingOut(false)
     }
@@ -102,15 +106,19 @@ export default function Subscription() {
         })
       })
 
+      const data = await response.json()
+
       if (!response.ok) {
-        throw new Error('Failed to create portal session')
+        // Show detailed error message from server
+        const errorMsg = data.details || data.error || 'Failed to create portal session'
+        console.error('Portal session error:', data)
+        throw new Error(errorMsg)
       }
 
-      const { url } = await response.json()
-      window.location.href = url
+      window.location.href = data.url
     } catch (error) {
       console.error('Error creating portal session:', error)
-      alert('Failed to open subscription management. Please try again.')
+      alert(`Failed to open subscription management: ${error.message}`)
     } finally {
       setCheckingOut(false)
     }
