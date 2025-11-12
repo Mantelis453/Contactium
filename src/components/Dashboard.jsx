@@ -88,20 +88,14 @@ export default function Dashboard() {
     }
   }
 
-  const deleteCampaign = async (id) => {
-    if (!confirm('Are you sure you want to delete this campaign?')) return
-
-    try {
-      const { error} = await supabase
-        .from('campaigns')
-        .delete()
-        .eq('id', id)
-
-      if (error) throw error
-      loadCampaigns()
-    } catch (error) {
-      console.error('Error deleting campaign:', error)
-      alert('Failed to delete campaign')
+  const checkCampaignExpiration = (createdAt) => {
+    const createdDate = new Date(createdAt)
+    const now = new Date()
+    const daysSinceCreation = Math.floor((now - createdDate) / (1000 * 60 * 60 * 24))
+    return {
+      isExpired: daysSinceCreation >= 30,
+      daysRemaining: 30 - daysSinceCreation,
+      daysSinceCreation
     }
   }
 
@@ -171,38 +165,52 @@ export default function Dashboard() {
                 </tr>
               </thead>
               <tbody>
-                {campaigns.map((campaign) => (
-                  <tr
-                    key={campaign.id}
-                    onClick={() => navigate(`/campaigns/${campaign.id}`)}
-                    style={{ cursor: 'pointer' }}
-                  >
-                    <td><strong>{campaign.name}</strong></td>
-                    <td><span className="category-badge">{campaign.category || 'General'}</span></td>
-                    <td>{campaign.emails_sent || 0}</td>
-                    <td>{formatDate(campaign.send_date)}</td>
-                    <td>
-                      <span className={`status-badge ${campaign.status}`}>
-                        {campaign.status}
-                      </span>
-                    </td>
-                    <td onClick={(e) => e.stopPropagation()}>
-                      {(campaign.status === 'not-started' || campaign.status === 'failed') && (
-                        <button
-                          onClick={() => handleSendCampaign(campaign.id, campaign.name)}
-                          className="action-btn primary"
-                          disabled={sendingCampaignId === campaign.id}
-                          style={{marginRight: '0.5rem'}}
-                        >
-                          {sendingCampaignId === campaign.id ? 'Sending...' : 'Send'}
-                        </button>
-                      )}
-                      <button onClick={() => deleteCampaign(campaign.id)} className="action-btn danger">
-                        Delete
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {campaigns.map((campaign) => {
+                  const expirationInfo = checkCampaignExpiration(campaign.created_at)
+                  return (
+                    <tr
+                      key={campaign.id}
+                      onClick={() => navigate(`/campaigns/${campaign.id}`)}
+                      style={{ cursor: 'pointer' }}
+                    >
+                      <td>
+                        <strong>{campaign.name}</strong>
+                        {expirationInfo.isExpired && (
+                          <div style={{ fontSize: '0.75rem', color: '#dc3545', marginTop: '0.25rem' }}>
+                            ⚠️ Expired
+                          </div>
+                        )}
+                        {!expirationInfo.isExpired && expirationInfo.daysRemaining <= 7 && (
+                          <div style={{ fontSize: '0.75rem', color: '#ffc107', marginTop: '0.25rem' }}>
+                            ⏳ {expirationInfo.daysRemaining}d left
+                          </div>
+                        )}
+                      </td>
+                      <td><span className="category-badge">{campaign.category || 'General'}</span></td>
+                      <td>{campaign.emails_sent || 0}</td>
+                      <td>{formatDate(campaign.send_date)}</td>
+                      <td>
+                        <span className={`status-badge ${campaign.status}`}>
+                          {campaign.status}
+                        </span>
+                      </td>
+                      <td onClick={(e) => e.stopPropagation()}>
+                        {!expirationInfo.isExpired && (campaign.status === 'not-started' || campaign.status === 'failed') && (
+                          <button
+                            onClick={() => handleSendCampaign(campaign.id, campaign.name)}
+                            className="action-btn primary"
+                            disabled={sendingCampaignId === campaign.id}
+                          >
+                            {sendingCampaignId === campaign.id ? 'Sending...' : 'Send'}
+                          </button>
+                        )}
+                        {expirationInfo.isExpired && (
+                          <span style={{ fontSize: '0.85rem', color: '#6c757d' }}>Expired</span>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
