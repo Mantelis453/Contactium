@@ -1,4 +1,5 @@
 import { createCheckoutSession, createPortalSession } from '../_lib/stripeService.js'
+import { supabase } from '../_lib/supabase.js'
 
 export default async function handler(req, res) {
   // Enable CORS
@@ -23,25 +24,32 @@ export default async function handler(req, res) {
 
     if (type === 'checkout') {
       // Create Stripe Checkout Session
-      if (!userId || !tier || !successUrl || !cancelUrl) {
+      if (!userId || !tier) {
         return res.status(400).json({
-          error: 'Missing required fields for checkout: userId, tier, successUrl, cancelUrl'
+          error: 'Missing required fields for checkout: userId, tier'
         })
       }
 
-      const session = await createCheckoutSession(userId, tier, successUrl, cancelUrl)
+      // Get user email from Supabase auth
+      const { data: { user }, error: userError } = await supabase.auth.admin.getUserById(userId)
+
+      if (userError || !user) {
+        return res.status(400).json({ error: 'User not found' })
+      }
+
+      const session = await createCheckoutSession(userId, tier, user.email)
       return res.json({ url: session.url })
     }
 
     if (type === 'portal') {
       // Create Stripe Customer Portal Session
-      if (!userId || !returnUrl) {
+      if (!userId) {
         return res.status(400).json({
-          error: 'Missing required fields for portal: userId, returnUrl'
+          error: 'Missing required fields for portal: userId'
         })
       }
 
-      const session = await createPortalSession(userId, returnUrl)
+      const session = await createPortalSession(userId)
       return res.json({ url: session.url })
     }
 
