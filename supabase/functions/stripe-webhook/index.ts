@@ -9,18 +9,18 @@ const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY') || '', {
 
 const webhookSecret = Deno.env.get('STRIPE_WEBHOOK_SECRET')
 
+// Price ID to tier mapping
+const PRICE_TIER_MAP: Record<string, string> = {
+  [Deno.env.get('STRIPE_STARTER_PRICE_ID') || '']: 'starter',
+  [Deno.env.get('STRIPE_PRO_PRICE_ID') || '']: 'professional',
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
   const signature = req.headers.get('stripe-signature')
-
-  // Temporarily skip signature verification for testing
-  // TODO: Re-enable this check once signature verification is working
-  // if (!signature) {
-  //   return new Response('No signature', { status: 400 })
-  // }
 
   if (!webhookSecret) {
     console.error('STRIPE_WEBHOOK_SECRET not configured')
@@ -29,71 +29,84 @@ Deno.serve(async (req) => {
 
   try {
     const body = await req.text()
-    console.log('Request body received, length:', body.length)
 
-    // Parse event directly (skip signature verification for testing)
-    // TODO: Re-enable signature verification once working
-    const event = JSON.parse(body)
+    let event: Stripe.Event
 
-    console.log('Webhook event received and verified:', event.type)
+    // Verify webhook signature in production
+    if (signature) {
+      try {
+        event = stripe.webhooks.constructEvent(body, signature, webhookSecret)
+      } catch (err) {
+        console.error('Webhook signature verification failed:', err.message)
+        return new Response(`Webhook Error: ${err.message}`, { status: 400 })
+      }
+    } else {
+      // For testing without signature
+      event = JSON.parse(body)
+    }
+
+    console.log('[Webhook] Event received:', event.type)
 
     const supabase = createSupabaseClient()
 
     switch (event.type) {
       case 'checkout.session.completed': {
         const session = event.data.object as Stripe.Checkout.Session
-        console.log('Checkout completed for customer:', session.customer)
+        console.log('[Webhook] Checkout completed:', session.id)
 
-        // Get customer email to find user
+        // Get customer email
         const customer = await stripe.customers.retrieve(session.customer as string) as Stripe.Customer
         const email = customer.email
 
         if (!email) {
-          console.error('No email found for customer')
+          console.error('[Webhook] No email found for customer')
           break
         }
 
-        // Find user by email using Supabase Auth
+        // Find user by email
         const { data: { users }, error: userError } = await supabase.auth.admin.listUsers()
 
         if (userError) {
-          console.error('Error listing users:', userError)
+          console.error('[Webhook] Error listing users:', userError)
           break
         }
 
         const user = users.find(u => u.email === email)
         if (!user) {
-          console.error('User not found for email:', email)
+          console.error('[Webhook] User not found for email:', email)
           break
         }
 
-        console.log('Found user:', user.id)
+        console.log('[Webhook] Found user:', user.id)
 
-        // Determine tier from price ID
-        const priceId = session.line_items?.data[0]?.price?.id || session.metadata?.priceId
-        let tier = 'free'
+        // Get subscription details
+        let subscriptionId: string | null = null
+        let priceId: string | null = null
 
-        const starterPriceId = Deno.env.get('STRIPE_STARTER_PRICE_ID')
-        const proPriceId = Deno.env.get('STRIPE_PRO_PRICE_ID')
-
-        if (priceId === starterPriceId) {
-          tier = 'starter'
-        } else if (priceId === proPriceId) {
-          tier = 'professional'
+        if (session.subscription) {
+          subscriptionId = session.subscription as string
+          const subscription = await stripe.subscriptions.retrieve(subscriptionId)
+          priceId = subscription.items.data[0]?.price.id
+        } else if (session.line_items) {
+          const lineItems = await stripe.checkout.sessions.listLineItems(session.id)
+          priceId = lineItems.data[0]?.price?.id
         }
 
-        console.log('Updating user', user.id, 'to tier:', tier)
+        // Determine tier from price ID
+        const tier = priceId && PRICE_TIER_MAP[priceId] ? PRICE_TIER_MAP[priceId] : 'free'
 
-        // Update user_subscriptions table
+        console.log('[Webhook] Updating subscription:', { userId: user.id, tier, priceId })
+
+        // Update user_settings table
         const { error: updateError } = await supabase
-          .from('user_subscriptions')
+          .from('user_settings')
           .upsert({
             user_id: user.id,
             stripe_customer_id: session.customer as string,
-            stripe_subscription_id: session.subscription as string,
-            tier: tier,
-            status: 'active',
-            current_period_end: session.subscription
+            stripe_subscription_id: subscriptionId,
+            subscription_tier: tier,
+            subscription_status: 'active',
+            subscription_end_date: subscriptionId
               ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
               : null,
             updated_at: new Date().toISOString()
@@ -102,31 +115,35 @@ Deno.serve(async (req) => {
           })
 
         if (updateError) {
-          console.error('Error updating subscription:', updateError)
+          console.error('[Webhook] Error updating subscription:', updateError)
         } else {
-          console.log('Successfully updated subscription for user:', user.id)
+          console.log('[Webhook] Successfully updated subscription for user:', user.id)
         }
 
         break
       }
 
-      case 'customer.subscription.updated':
-      case 'customer.subscription.deleted': {
+      case 'customer.subscription.updated': {
         const subscription = event.data.object as Stripe.Subscription
-        console.log('Subscription event:', event.type, subscription.id)
+        console.log('[Webhook] Subscription updated:', subscription.id)
 
         // Find user by customer ID
-        const { data: subData, error: subError } = await supabase
-          .from('user_subscriptions')
+        const { data: settings, error: settingsError } = await supabase
+          .from('user_settings')
           .select('user_id')
           .eq('stripe_customer_id', subscription.customer as string)
           .single()
 
-        if (subError || !subData) {
-          console.error('Subscription not found for customer:', subscription.customer)
+        if (settingsError || !settings) {
+          console.error('[Webhook] Settings not found for customer:', subscription.customer)
           break
         }
 
+        // Get price ID and determine tier
+        const priceId = subscription.items.data[0]?.price.id
+        const tier = priceId && PRICE_TIER_MAP[priceId] ? PRICE_TIER_MAP[priceId] : 'free'
+
+        // Map Stripe status to our status
         let status = 'active'
         if (subscription.status === 'canceled' || subscription.status === 'incomplete_expired') {
           status = 'canceled'
@@ -134,41 +151,58 @@ Deno.serve(async (req) => {
           status = 'past_due'
         }
 
-        // Determine tier from price ID
-        const priceId = subscription.items.data[0]?.price.id
-        let tier = 'free'
-
-        const starterPriceId = Deno.env.get('STRIPE_STARTER_PRICE_ID')
-        const proPriceId = Deno.env.get('STRIPE_PRO_PRICE_ID')
-
-        if (priceId === starterPriceId) {
-          tier = 'starter'
-        } else if (priceId === proPriceId) {
-          tier = 'professional'
-        }
-
-        // If subscription is canceled, revert to free
-        if (event.type === 'customer.subscription.deleted') {
-          tier = 'free'
-          status = 'canceled'
-        }
-
-        console.log('Updating subscription to tier:', tier, 'status:', status)
+        console.log('[Webhook] Updating subscription:', { tier, status })
 
         const { error: updateError } = await supabase
-          .from('user_subscriptions')
+          .from('user_settings')
           .update({
-            tier: tier,
-            status: status,
-            current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
+            subscription_tier: tier,
+            subscription_status: status,
+            subscription_end_date: new Date(subscription.current_period_end * 1000).toISOString(),
             updated_at: new Date().toISOString()
           })
-          .eq('user_id', subData.user_id)
+          .eq('user_id', settings.user_id)
 
         if (updateError) {
-          console.error('Error updating subscription:', updateError)
+          console.error('[Webhook] Error updating subscription:', updateError)
         } else {
-          console.log('Successfully updated subscription')
+          console.log('[Webhook] Successfully updated subscription')
+        }
+
+        break
+      }
+
+      case 'customer.subscription.deleted': {
+        const subscription = event.data.object as Stripe.Subscription
+        console.log('[Webhook] Subscription deleted:', subscription.id)
+
+        // Find user by customer ID
+        const { data: settings, error: settingsError } = await supabase
+          .from('user_settings')
+          .select('user_id')
+          .eq('stripe_customer_id', subscription.customer as string)
+          .single()
+
+        if (settingsError || !settings) {
+          console.error('[Webhook] Settings not found for customer:', subscription.customer)
+          break
+        }
+
+        // Revert to free tier
+        const { error: updateError } = await supabase
+          .from('user_settings')
+          .update({
+            subscription_tier: 'free',
+            subscription_status: 'canceled',
+            subscription_end_date: null,
+            updated_at: new Date().toISOString()
+          })
+          .eq('user_id', settings.user_id)
+
+        if (updateError) {
+          console.error('[Webhook] Error updating subscription:', updateError)
+        } else {
+          console.log('[Webhook] Successfully reverted to free tier')
         }
 
         break
@@ -176,46 +210,45 @@ Deno.serve(async (req) => {
 
       case 'invoice.payment_succeeded': {
         const invoice = event.data.object as Stripe.Invoice
-        console.log('Payment succeeded for invoice:', invoice.id)
-        // Email usage is reset monthly, no action needed here
+        console.log('[Webhook] Payment succeeded for invoice:', invoice.id)
         break
       }
 
       case 'invoice.payment_failed': {
         const invoice = event.data.object as Stripe.Invoice
-        console.log('Payment failed for invoice:', invoice.id)
+        console.log('[Webhook] Payment failed for invoice:', invoice.id)
 
         // Find user by customer ID
-        const { data: subData } = await supabase
-          .from('user_subscriptions')
+        const { data: settings } = await supabase
+          .from('user_settings')
           .select('user_id')
           .eq('stripe_customer_id', invoice.customer as string)
           .single()
 
-        if (subData) {
+        if (settings) {
           await supabase
-            .from('user_subscriptions')
+            .from('user_settings')
             .update({
-              status: 'past_due',
+              subscription_status: 'past_due',
               updated_at: new Date().toISOString()
             })
-            .eq('user_id', subData.user_id)
+            .eq('user_id', settings.user_id)
         }
 
         break
       }
 
       default:
-        console.log('Unhandled event type:', event.type)
+        console.log('[Webhook] Unhandled event type:', event.type)
     }
 
     return new Response(JSON.stringify({ received: true }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     })
   } catch (err) {
-    console.error('Webhook error:', err)
-    console.error('Error message:', err.message)
-    console.error('Error stack:', err.stack)
+    console.error('[Webhook] Error:', err)
+    console.error('[Webhook] Error message:', err.message)
+    console.error('[Webhook] Error stack:', err.stack)
     return new Response(
       JSON.stringify({ error: err.message, details: err.stack }),
       { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

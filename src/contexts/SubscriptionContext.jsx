@@ -39,41 +39,110 @@ export function SubscriptionProvider({ children }) {
   const [loading, setLoading] = useState(true)
 
   const loadSubscriptionData = async () => {
-    if (!user?.id) return
+    if (!user?.id) {
+      setLoading(false)
+      return
+    }
 
     try {
-      // Query Stripe data directly using the wrapper
-      const { data, error: subError } = await supabase
-        .rpc('get_my_subscription')
-        .single()
+      console.log('[SubscriptionContext] Loading subscription for user:', user.id)
 
-      if (subError) {
-        console.error('Error loading subscription:', subError)
-        setSubscription({ tier: 'free' })
-      } else if (data) {
-        console.log('Subscription loaded:', data)
+      // Query user_settings table for subscription data
+      const { data: settings, error } = await supabase
+        .from('user_settings')
+        .select('subscription_tier, subscription_status, stripe_customer_id, stripe_subscription_id, subscription_end_date, emails_sent_this_month, last_reset_date')
+        .eq('user_id', user.id)
+        .maybeSingle()
+
+      if (error && error.code !== 'PGRST116') {
+        console.error('[SubscriptionContext] Error loading settings:', error)
+        throw error
+      }
+
+      if (!settings) {
+        // User has no settings yet, create default free tier
+        console.log('[SubscriptionContext] No settings found, creating free tier defaults')
+
+        const { error: insertError } = await supabase
+          .from('user_settings')
+          .insert({
+            user_id: user.id,
+            subscription_tier: 'free',
+            subscription_status: 'active',
+            emails_sent_this_month: 0,
+            last_reset_date: new Date().toISOString()
+          })
+
+        if (insertError) {
+          console.error('[SubscriptionContext] Error creating settings:', insertError)
+        }
+
         setSubscription({
-          tier: data.tier || 'free',
-          status: data.status,
-          subscription_id: data.subscription_id,
-          email_limit: data.email_limit,
-          contact_limit: data.contact_limit,
-          campaign_limit: data.campaign_limit,
-          current_period_end: data.current_period_end
+          tier: 'free',
+          status: 'active',
+          email_limit: PLAN_LIMITS.free.emailLimit,
+          contact_limit: PLAN_LIMITS.free.contactLimit,
+          campaign_limit: PLAN_LIMITS.free.campaignLimit
         })
 
-        // TODO: Add usage tracking if needed
-        setUsage({ canSend: true, remaining: data.email_limit || 10 })
-      } else {
-        // No subscription found, user is on free plan
-        setSubscription({ tier: 'free' })
-        setUsage({ canSend: true, remaining: 10 })
+        setUsage({
+          canSend: true,
+          emailsSent: 0,
+          emailLimit: PLAN_LIMITS.free.emailLimit,
+          remaining: PLAN_LIMITS.free.emailLimit
+        })
+
+        setLoading(false)
+        return
       }
+
+      const tier = settings.subscription_tier || 'free'
+      const planLimits = PLAN_LIMITS[tier]
+
+      console.log('[SubscriptionContext] Subscription loaded:', {
+        tier,
+        status: settings.subscription_status
+      })
+
+      setSubscription({
+        tier,
+        status: settings.subscription_status || 'active',
+        subscription_id: settings.stripe_subscription_id,
+        customer_id: settings.stripe_customer_id,
+        email_limit: planLimits.emailLimit,
+        contact_limit: planLimits.contactLimit,
+        campaign_limit: planLimits.campaignLimit,
+        current_period_end: settings.subscription_end_date
+      })
+
+      // Calculate usage
+      const emailsSent = settings.emails_sent_this_month || 0
+      const emailLimit = planLimits.emailLimit
+      const remaining = Math.max(0, emailLimit - emailsSent)
+
+      setUsage({
+        canSend: remaining > 0,
+        emailsSent,
+        emailLimit,
+        remaining
+      })
+
     } catch (error) {
-      console.error('Error loading subscription data:', error)
+      console.error('[SubscriptionContext] Error loading subscription data:', error)
       // Default to free plan on error
-      setSubscription({ tier: 'free' })
-      setUsage({ canSend: true, remaining: 10 })
+      setSubscription({
+        tier: 'free',
+        status: 'active',
+        email_limit: PLAN_LIMITS.free.emailLimit,
+        contact_limit: PLAN_LIMITS.free.contactLimit,
+        campaign_limit: PLAN_LIMITS.free.campaignLimit
+      })
+      setUsage({
+        canSend: true,
+        emailsSent: 0,
+        emailLimit: PLAN_LIMITS.free.emailLimit,
+        remaining: PLAN_LIMITS.free.emailLimit
+      })
     } finally {
       setLoading(false)
     }
@@ -123,6 +192,7 @@ export function SubscriptionProvider({ children }) {
 
   // Refresh subscription data (call after upgrade/downgrade)
   const refreshSubscription = async () => {
+    console.log('[SubscriptionContext] Refreshing subscription data')
     setLoading(true)
     await loadSubscriptionData()
   }
