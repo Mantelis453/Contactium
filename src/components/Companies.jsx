@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react'
 import SearchableSelect from './SearchableSelect'
+import API_URL from '../config/api'
 import '../styles/Companies.css'
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001'
 
 export default function Companies() {
   const [companies, setCompanies] = useState([])
@@ -51,7 +50,7 @@ export default function Companies() {
         limit: limit.toString()
       })
 
-      const response = await fetch(`${API_URL}/api/companies?${params}`)
+      const response = await fetch(`${API_URL}/companies?${params}`)
       const data = await response.json()
 
       if (response.ok) {
@@ -82,7 +81,7 @@ export default function Companies() {
 
   const loadActivities = async () => {
     try {
-      const response = await fetch(`${API_URL}/api/companies/activities`)
+      const response = await fetch(`${API_URL}/companies-activities`)
       const data = await response.json()
 
       if (response.ok) {

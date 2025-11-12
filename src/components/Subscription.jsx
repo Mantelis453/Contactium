@@ -1,9 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../hooks/useAuth'
 import { useSubscription as useSubscriptionContext } from '../contexts/SubscriptionContext'
+import API_URL from '../config/api'
 import '../styles/Subscription.css'
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001'
 
 export default function Subscription() {
   const { user } = useAuth()
@@ -34,8 +33,8 @@ export default function Subscription() {
 
       // Load subscription info and usage in parallel
       const [subscriptionRes, usageRes] = await Promise.all([
-        fetch(`${API_URL}/api/stripe/data?userId=${user.id}&type=subscription`),
-        fetch(`${API_URL}/api/stripe/data?userId=${user.id}&type=usage`)
+        fetch(`${API_URL}/stripe-data?userId=${user.id}&type=subscription`),
+        fetch(`${API_URL}/stripe-data?userId=${user.id}&type=usage`)
       ])
 
       if (subscriptionRes.ok) {
@@ -58,7 +57,7 @@ export default function Subscription() {
     try {
       setCheckingOut(true)
 
-      const response = await fetch(`${API_URL}/api/stripe/session`, {
+      const response = await fetch(`${API_URL}/stripe-session`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -66,9 +65,7 @@ export default function Subscription() {
         body: JSON.stringify({
           type: 'checkout',
           userId: user.id,
-          tier,
-          successUrl: `${window.location.origin}/settings?success=true`,
-          cancelUrl: `${window.location.origin}/settings`
+          tier
         })
       })
 
@@ -94,15 +91,14 @@ export default function Subscription() {
     try {
       setCheckingOut(true)
 
-      const response = await fetch(`${API_URL}/api/stripe/session`, {
+      const response = await fetch(`${API_URL}/stripe-session`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           type: 'portal',
-          userId: user.id,
-          returnUrl: `${window.location.origin}/settings`
+          userId: user.id
         })
       })
 
