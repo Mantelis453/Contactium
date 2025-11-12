@@ -1,10 +1,9 @@
 import { createContext, useContext, useState, useEffect } from 'react'
 import { useAuth } from '../hooks/useAuth'
 import { supabase } from '../lib/supabase'
+import API_URL from '../config/api'
 
 const SubscriptionContext = createContext()
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001'
 
 // Plan limits configuration
 const PLAN_LIMITS = {
@@ -45,8 +44,8 @@ export function SubscriptionProvider({ children }) {
 
     try {
       const [subscriptionRes, usageRes] = await Promise.all([
-        fetch(`${API_URL}/api/stripe/subscription/${user.id}`),
-        fetch(`${API_URL}/api/stripe/usage/${user.id}`)
+        fetch(`${API_URL}/stripe-data?userId=${user.id}&type=subscription`),
+        fetch(`${API_URL}/stripe-data?userId=${user.id}&type=usage`)
       ])
 
       if (subscriptionRes.ok) {
