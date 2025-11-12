@@ -15,32 +15,29 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Fetch all companies with activities (remove default limit)
-    let allData = []
-    let start = 0
-    const batchSize = 1000
+    // Use a more efficient query - just get distinct activities
+    // This is much faster than fetching all companies
+    const { data, error } = await supabase
+      .rpc('get_distinct_activities')
+      .limit(1000)
 
-    while (true) {
-      const { data, error } = await supabase
+    if (error) {
+      // If RPC function doesn't exist, fall back to simpler query with limit
+      console.warn('RPC function not available, using fallback query')
+      const { data: fallbackData, error: fallbackError } = await supabase
         .from('companies')
         .select('activity')
         .not('activity', 'is', null)
-        .range(start, start + batchSize - 1)
+        .limit(1000)
 
-      if (error) throw error
+      if (fallbackError) throw fallbackError
 
-      if (!data || data.length === 0) break
-
-      allData = allData.concat(data)
-
-      if (data.length < batchSize) break
-
-      start += batchSize
+      const activities = [...new Set(fallbackData.map(d => d.activity))].filter(Boolean).sort()
+      return res.json({ activities })
     }
 
-    // Get unique activities
-    const activities = [...new Set(allData.map(d => d.activity))].filter(Boolean).sort()
-
+    // RPC returns array of distinct activities
+    const activities = (data || []).filter(Boolean).sort()
     res.json({ activities })
   } catch (error) {
     console.error('Error fetching activities:', error)

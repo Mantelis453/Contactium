@@ -507,31 +507,18 @@ app.delete('/api/companies/:id', async (req, res) => {
 // Get unique activities for filter dropdown
 app.get('/api/companies/activities', async (req, res) => {
   try {
-    // Fetch all companies with activities (remove default limit)
-    let allData = []
-    let start = 0
-    const batchSize = 1000
+    // Use a simpler query with limit to avoid timeouts
+    // This should be fast enough for most use cases
+    const { data, error } = await supabase
+      .from('companies')
+      .select('activity')
+      .not('activity', 'is', null)
+      .limit(1000)
 
-    while (true) {
-      const { data, error } = await supabase
-        .from('companies')
-        .select('activity')
-        .not('activity', 'is', null)
-        .range(start, start + batchSize - 1)
-
-      if (error) throw error
-
-      if (!data || data.length === 0) break
-
-      allData = allData.concat(data)
-
-      if (data.length < batchSize) break
-
-      start += batchSize
-    }
+    if (error) throw error
 
     // Get unique activities
-    const activities = [...new Set(allData.map(d => d.activity))].filter(Boolean).sort()
+    const activities = [...new Set(data.map(d => d.activity))].filter(Boolean).sort()
 
     res.json({ activities })
   } catch (error) {
