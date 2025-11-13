@@ -39,6 +39,8 @@ export default function CreateCampaign() {
     maxRating: ''
   })
   const [emailApproved, setEmailApproved] = useState(false)
+  const [emailMode, setEmailMode] = useState('ai') // 'ai' or 'manual'
+  const [manualEmail, setManualEmail] = useState({ subject: '', body: '' })
 
   const totalSteps = 5
 
@@ -166,6 +168,8 @@ export default function CreateCampaign() {
   const saveCampaign = async () => {
     setLoading(true)
     try {
+      const emailData = emailMode === 'manual' ? manualEmail : referenceEmail
+
       const { data: campaign, error: campaignError } = await supabase
         .from('campaigns')
         .insert({
@@ -173,8 +177,8 @@ export default function CreateCampaign() {
           name: formData.name,
           category: formData.category,
           description: formData.description,
-          email_subject: referenceEmail.subject,
-          email_body: referenceEmail.body,
+          email_subject: emailData.subject,
+          email_body: emailData.body,
           send_date: formData.sendDate || null,
           status: 'not-started',
           sender_name: formData.senderName,
@@ -244,13 +248,24 @@ export default function CreateCampaign() {
         }
         return true
       case 4:
-        if (!referenceEmail) {
-          alert('Please generate an email preview first')
-          return false
-        }
-        if (!emailApproved) {
-          alert('Please approve the email template before continuing')
-          return false
+        if (emailMode === 'ai') {
+          if (!referenceEmail) {
+            alert('Please generate an email preview first')
+            return false
+          }
+          if (!emailApproved) {
+            alert('Please approve the email template before continuing')
+            return false
+          }
+        } else {
+          if (!manualEmail.subject || !manualEmail.body) {
+            alert('Please fill in both email subject and body')
+            return false
+          }
+          if (!emailApproved) {
+            alert('Please approve your email before continuing')
+            return false
+          }
         }
         return true
       default:
@@ -528,58 +543,149 @@ export default function CreateCampaign() {
       case 4:
         return (
           <div className="step-content">
-            <h3>Email Preview</h3>
-            <p className="step-description">Generate and review a sample email before sending</p>
+            <h3>Email Content</h3>
+            <p className="step-description">Choose how you want to create your email</p>
 
-            <div className="preview-info">
-              <p>Generate a reference email using one of your selected companies. Unique personalized emails will be created for each recipient when you send the campaign.</p>
+            <div className="email-mode-toggle">
+              <button
+                className={`mode-btn ${emailMode === 'ai' ? 'active' : ''}`}
+                onClick={() => {
+                  setEmailMode('ai')
+                  setEmailApproved(false)
+                }}
+              >
+                AI Generated
+              </button>
+              <button
+                className={`mode-btn ${emailMode === 'manual' ? 'active' : ''}`}
+                onClick={() => {
+                  setEmailMode('manual')
+                  setEmailApproved(false)
+                }}
+              >
+                Write Manually
+              </button>
             </div>
 
-            <button
-              onClick={generateReferenceEmail}
-              className="primary-btn"
-              disabled={generatingEmail}
-            >
-              {generatingEmail ? 'Generating...' : referenceEmail ? 'Regenerate Preview' : 'Generate Email Preview'}
-            </button>
-
-            {referenceEmail && (
-              <div className="email-preview-card">
-                <div className="preview-badge">
-                  Sample for: <strong>{referenceEmail.companyName}</strong>
+            {emailMode === 'ai' ? (
+              <>
+                <div className="preview-info">
+                  <p>Generate a reference email using one of your selected companies. Unique personalized emails will be created for each recipient when you send the campaign.</p>
                 </div>
 
-                <div className="email-content">
-                  <div className="email-subject">
-                    <label>Subject:</label>
-                    <div>{referenceEmail.subject}</div>
+                <button
+                  onClick={generateReferenceEmail}
+                  className="primary-btn"
+                  disabled={generatingEmail}
+                >
+                  {generatingEmail ? 'Generating...' : referenceEmail ? 'Regenerate Preview' : 'Generate Email Preview'}
+                </button>
+
+                {referenceEmail && (
+                  <div className="email-preview-card">
+                    <div className="preview-badge">
+                      Sample for: <strong>{referenceEmail.companyName}</strong>
+                    </div>
+
+                    <div className="email-content">
+                      <div className="email-subject">
+                        <label>Subject:</label>
+                        <div>{referenceEmail.subject}</div>
+                      </div>
+
+                      <div className="email-body">
+                        <label>Body:</label>
+                        <div className="email-text">{referenceEmail.body}</div>
+                      </div>
+                    </div>
+
+                    <div className="preview-note">
+                      Each of the {formData.selectedCompanies.length} selected companies will receive a unique, personalized version.
+                    </div>
+
+                    {!emailApproved && (
+                      <button
+                        onClick={() => setEmailApproved(true)}
+                        className="approve-btn"
+                      >
+                        Approve Template ✓
+                      </button>
+                    )}
+
+                    {emailApproved && (
+                      <div className="approved-badge">
+                        ✓ Template Approved
+                      </div>
+                    )}
                   </div>
-
-                  <div className="email-body">
-                    <label>Body:</label>
-                    <div className="email-text">{referenceEmail.body}</div>
-                  </div>
-                </div>
-
-                <div className="preview-note">
-                  Each of the {formData.selectedCompanies.length} selected companies will receive a unique, personalized version.
-                </div>
-
-                {!emailApproved && (
-                  <button
-                    onClick={() => setEmailApproved(true)}
-                    className="approve-btn"
-                  >
-                    Approve Template ✓
-                  </button>
                 )}
+              </>
+            ) : (
+              <>
+                <div className="preview-info">
+                  <p>Write your email manually. This email will be sent to all {formData.selectedCompanies.length} selected companies.</p>
+                </div>
 
-                {emailApproved && (
-                  <div className="approved-badge">
-                    ✓ Template Approved
+                <div className="manual-email-form">
+                  <div className="form-group">
+                    <label>Email Subject *</label>
+                    <input
+                      type="text"
+                      value={manualEmail.subject}
+                      onChange={(e) => setManualEmail({ ...manualEmail, subject: e.target.value })}
+                      placeholder="Enter email subject..."
+                      className="form-input"
+                    />
                   </div>
-                )}
-              </div>
+
+                  <div className="form-group">
+                    <label>Email Body *</label>
+                    <textarea
+                      value={manualEmail.body}
+                      onChange={(e) => setManualEmail({ ...manualEmail, body: e.target.value })}
+                      rows="12"
+                      placeholder="Write your email content here..."
+                      className="form-textarea"
+                    />
+                    <small>Tip: You can use placeholders like {'{company_name}'} for personalization</small>
+                  </div>
+
+                  {manualEmail.subject && manualEmail.body && (
+                    <div className="email-preview-card">
+                      <div className="preview-badge">
+                        Email Preview
+                      </div>
+
+                      <div className="email-content">
+                        <div className="email-subject">
+                          <label>Subject:</label>
+                          <div>{manualEmail.subject}</div>
+                        </div>
+
+                        <div className="email-body">
+                          <label>Body:</label>
+                          <div className="email-text">{manualEmail.body}</div>
+                        </div>
+                      </div>
+
+                      {!emailApproved && (
+                        <button
+                          onClick={() => setEmailApproved(true)}
+                          className="approve-btn"
+                        >
+                          Approve Email ✓
+                        </button>
+                      )}
+
+                      {emailApproved && (
+                        <div className="approved-badge">
+                          ✓ Email Approved
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </>
             )}
           </div>
         )
@@ -630,11 +736,18 @@ export default function CreateCampaign() {
               <div className="review-section">
                 <h4>Email Template</h4>
                 <div className="review-item">
+                  <span>Mode:</span>
+                  <strong>{emailMode === 'ai' ? 'AI Generated' : 'Manual'}</strong>
+                </div>
+                <div className="review-item">
                   <span>Subject:</span>
-                  <strong>{referenceEmail?.subject}</strong>
+                  <strong>{emailMode === 'manual' ? manualEmail.subject : referenceEmail?.subject}</strong>
                 </div>
                 <div className="email-snippet">
-                  {referenceEmail?.body.substring(0, 150)}...
+                  {emailMode === 'manual' ?
+                    manualEmail.body.substring(0, 150) :
+                    referenceEmail?.body.substring(0, 150)
+                  }...
                 </div>
               </div>
             </div>
