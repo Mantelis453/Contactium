@@ -24,6 +24,7 @@ Deno.serve(async (req) => {
       .select('*', { count: 'exact' })
       .not('email', 'is', null)
       .neq('email', '')
+      .ilike('email', '%@%')
       .not('email', 'ilike', '%neviešinama%')
       .order('created_at', { ascending: false })
 
