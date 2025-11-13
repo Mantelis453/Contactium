@@ -77,31 +77,26 @@ export default function CreateCampaign() {
   const loadCompanies = async () => {
     setLoadingCompanies(true)
     try {
-      let query = supabase.from('companies').select('*')
+      const params = new URLSearchParams({
+        ...(filters.activity && { activity: filters.activity }),
+        ...(filters.minEmployees && { minEmployees: filters.minEmployees }),
+        ...(filters.maxEmployees && { maxEmployees: filters.maxEmployees }),
+        ...(filters.minRating && { minRating: filters.minRating }),
+        ...(filters.maxRating && { maxRating: filters.maxRating }),
+        limit: '1000' // Get more companies for campaign
+      })
 
-      if (filters.activity) {
-        query = query.eq('activity', filters.activity)
-      }
-      if (filters.minEmployees) {
-        query = query.gte('employees', parseInt(filters.minEmployees))
-      }
-      if (filters.maxEmployees) {
-        query = query.lte('employees', parseInt(filters.maxEmployees))
-      }
-      if (filters.minRating) {
-        query = query.gte('scorist_rating', parseFloat(filters.minRating))
-      }
-      if (filters.maxRating) {
-        query = query.lte('scorist_rating', parseFloat(filters.maxRating))
-      }
+      const response = await fetch(`${API_URL}/companies?${params}`)
+      const data = await response.json()
 
-      const { data, error } = await query
-
-      if (error) throw error
-      setCompanies(data || [])
+      if (response.ok) {
+        setCompanies(data.companies || [])
+      } else {
+        throw new Error(data.error || 'Failed to load companies')
+      }
     } catch (error) {
       console.error('Error loading companies:', error)
-      alert('Failed to load companies. Make sure you have added companies to your database.')
+      alert('Failed to load companies. Please make sure the API is running and companies are available.')
     } finally {
       setLoadingCompanies(false)
     }
