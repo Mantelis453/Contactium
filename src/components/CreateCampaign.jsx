@@ -86,17 +86,29 @@ export default function CreateCampaign() {
         limit: '1000' // Get more companies for campaign
       })
 
-      const response = await fetch(`${API_URL}/companies?${params}`)
+      const url = `${API_URL}/companies?${params}`
+      console.log('Fetching companies from:', url)
+
+      const response = await fetch(url)
+      console.log('Response status:', response.status)
+
       const data = await response.json()
+      console.log('Response data:', data)
 
       if (response.ok) {
-        setCompanies(data.companies || [])
+        const companies = data.companies || []
+        console.log('Loaded companies count:', companies.length)
+        setCompanies(companies)
+
+        if (companies.length === 0) {
+          alert('No companies found matching your filters. Try adjusting the filter criteria or check if companies with valid emails exist in your database.')
+        }
       } else {
         throw new Error(data.error || 'Failed to load companies')
       }
     } catch (error) {
       console.error('Error loading companies:', error)
-      alert('Failed to load companies. Please make sure the API is running and companies are available.')
+      alert(`Failed to load companies: ${error.message}. Please check the console for details.`)
     } finally {
       setLoadingCompanies(false)
     }
