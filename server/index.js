@@ -467,6 +467,7 @@ app.get('/api/companies', async (req, res) => {
       .select('*')
       .not('email', 'is', null)
       .neq('email', '')
+      .not('email', 'ilike', '%neviešinama%')
       .order('created_at', { ascending: false })
 
     // Apply filters
