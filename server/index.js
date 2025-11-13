@@ -465,6 +465,8 @@ app.get('/api/companies', async (req, res) => {
     let query = supabase
       .from('companies')
       .select('*')
+      .not('email', 'is', null)
+      .neq('email', '')
       .order('created_at', { ascending: false })
 
     // Apply filters
