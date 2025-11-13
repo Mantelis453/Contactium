@@ -16,8 +16,10 @@ export default function ContactListDetail() {
   const [adding, setAdding] = useState(false)
 
   useEffect(() => {
-    loadListAndContacts()
-  }, [listId])
+    if (user?.id) {
+      loadListAndContacts()
+    }
+  }, [listId, user])
 
   const loadListAndContacts = async () => {
     try {

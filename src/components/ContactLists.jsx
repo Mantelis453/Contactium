@@ -14,7 +14,9 @@ export default function ContactLists() {
   const [creating, setCreating] = useState(false)
 
   useEffect(() => {
-    loadLists()
+    if (user?.id) {
+      loadLists()
+    }
   }, [user])
 
   const loadLists = async () => {
@@ -29,7 +31,15 @@ export default function ContactLists() {
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
 
-      if (error) throw error
+      if (error) {
+        // Check if it's a table not found error
+        if (error.code === 'PGRST204' || error.message?.includes('does not exist')) {
+          alert('Contact Lists feature not set up yet. Please run the database migration script from db/contact_lists_schema.sql in your Supabase SQL Editor.')
+          navigate('/')
+          return
+        }
+        throw error
+      }
 
       // Format the data to include contact count
       const formattedLists = data.map(list => ({
@@ -40,7 +50,7 @@ export default function ContactLists() {
       setLists(formattedLists)
     } catch (error) {
       console.error('Error loading lists:', error)
-      alert('Failed to load contact lists')
+      alert('Failed to load contact lists. Please check the console for details.')
     } finally {
       setLoading(false)
     }
