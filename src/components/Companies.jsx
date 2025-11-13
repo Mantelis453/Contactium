@@ -24,17 +24,6 @@ export default function Companies() {
   const [minRating, setMinRating] = useState('')
   const [maxRating, setMaxRating] = useState('')
 
-  // Quick filter categories for Lithuanian businesses
-  // These match the activity field values from the database
-  const quickFilters = [
-    { label: 'Maitinimo įstaigos', activity: 'Maitinimo ir gėrimų teikimo veikla' },
-    { label: 'Reklamos agentūros', activity: 'Reklamos agentūrų veikla' },
-    { label: 'IT įmonės', activity: 'Informacinių technologijų ir kompiuterių programavimo veikla' },
-    { label: 'Statybos įmonės', activity: 'Statybos darbai' },
-    { label: 'Transporto įmonės', activity: 'Sausumos transporto veikla' },
-    { label: 'Prekybos įmonės', activity: 'Didmeninė ir mažmeninė prekyba' }
-  ]
-
   // Debounce search query - wait 500ms after user stops typing
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -122,12 +111,6 @@ export default function Companies() {
     setMaxRating('')
   }
 
-  const applyQuickFilter = (activityName) => {
-    setActivityFilter(activityName)
-    // Clear search when applying quick filter
-    setSearchQuery('')
-  }
-
   if (loading && companies.length === 0) {
     return (
       <div className="page-container">
@@ -150,19 +133,6 @@ export default function Companies() {
           placeholder="Search by name, code, or email..."
           className="search-input"
         />
-
-        <div className="quick-filters">
-          {quickFilters.map((filter, index) => (
-            <button
-              key={index}
-              onClick={() => applyQuickFilter(filter.activity)}
-              className={`quick-filter-btn ${activityFilter === filter.activity ? 'active' : ''}`}
-              title={`Filter by ${filter.label}`}
-            >
-              {filter.label}
-            </button>
-          ))}
-        </div>
 
         <SearchableSelect
           options={activities}
