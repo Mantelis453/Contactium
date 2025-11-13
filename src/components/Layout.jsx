@@ -62,6 +62,12 @@ export default function Layout({ children }) {
               Companies
             </Link>
             <Link
+              to="/contact-lists"
+              className={`nav-btn ${isActive('/contact-lists') || location.pathname.startsWith('/contact-lists/') ? 'active' : ''}`}
+            >
+              Contact Lists
+            </Link>
+            <Link
               to="/settings"
               className={`nav-btn ${isActive('/settings') ? 'active' : ''}`}
             >

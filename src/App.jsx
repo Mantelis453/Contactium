@@ -11,6 +11,8 @@ import Campaigns from './components/Campaigns'
 import CampaignDetails from './components/CampaignDetails'
 import CreateCampaign from './components/CreateCampaign'
 import Companies from './components/Companies'
+import ContactLists from './components/ContactLists'
+import ContactListDetail from './components/ContactListDetail'
 import Settings from './components/Settings'
 import Layout from './components/Layout'
 import './styles/App.css'
@@ -51,6 +53,8 @@ function App() {
             <Route path="/campaigns/:id" element={<CampaignDetails />} />
             <Route path="/create" element={<CreateCampaign />} />
             <Route path="/companies" element={<Companies />} />
+            <Route path="/contact-lists" element={<ContactLists />} />
+            <Route path="/contact-lists/:listId" element={<ContactListDetail />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
