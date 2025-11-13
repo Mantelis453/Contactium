@@ -17,18 +17,38 @@ export default function Companies() {
 
   // Filters
   const [searchQuery, setSearchQuery] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
   const [activityFilter, setActivityFilter] = useState('all')
   const [minEmployees, setMinEmployees] = useState('')
   const [maxEmployees, setMaxEmployees] = useState('')
   const [minRating, setMinRating] = useState('')
   const [maxRating, setMaxRating] = useState('')
 
+  // Quick filter categories for Lithuanian businesses
+  const quickFilters = [
+    { label: 'Maitinimo įstaigos', search: 'maitinimo' },
+    { label: 'Reklamos agentūros', search: 'reklamos' },
+    { label: 'IT įmonės', search: 'informacijos technologij' },
+    { label: 'Statybos įmonės', search: 'statybos' },
+    { label: 'Transporto įmonės', search: 'transporto' },
+    { label: 'Prekybos įmonės', search: 'prekyb' }
+  ]
+
+  // Debounce search query - wait 500ms after user stops typing
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery)
+    }, 500)
+
+    return () => clearTimeout(timer)
+  }, [searchQuery])
+
   useEffect(() => {
     setOffset(0)
     setCompanies([])
     loadCompanies(true)
     loadActivities()
-  }, [activityFilter, minEmployees, maxEmployees, minRating, maxRating, searchQuery])
+  }, [activityFilter, minEmployees, maxEmployees, minRating, maxRating, debouncedSearch])
 
   const loadCompanies = async (reset = false) => {
     try {
@@ -45,7 +65,7 @@ export default function Companies() {
         ...(maxEmployees && { maxEmployees }),
         ...(minRating && { minRating }),
         ...(maxRating && { maxRating }),
-        ...(searchQuery && { search: searchQuery }),
+        ...(debouncedSearch && { search: debouncedSearch }),
         offset: currentOffset.toString(),
         limit: limit.toString()
       })
@@ -101,6 +121,12 @@ export default function Companies() {
     setMaxRating('')
   }
 
+  const applyQuickFilter = (searchTerm) => {
+    setSearchQuery(searchTerm)
+    // Clear other filters when applying quick filter
+    setActivityFilter('all')
+  }
+
   if (loading && companies.length === 0) {
     return (
       <div className="page-container">
@@ -123,6 +149,19 @@ export default function Companies() {
           placeholder="Search by name, code, or email..."
           className="search-input"
         />
+
+        <div className="quick-filters">
+          {quickFilters.map((filter, index) => (
+            <button
+              key={index}
+              onClick={() => applyQuickFilter(filter.search)}
+              className={`quick-filter-btn ${searchQuery === filter.search ? 'active' : ''}`}
+              title={`Filter by ${filter.label}`}
+            >
+              {filter.label}
+            </button>
+          ))}
+        </div>
 
         <SearchableSelect
           options={activities}

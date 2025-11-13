@@ -49,6 +49,46 @@
   border-color: #3b82f6;
 }
 
+.quick-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 0;
+  border-bottom: 1px solid #e2e8f0;
+  margin-bottom: 8px;
+}
+
+.quick-filter-btn {
+  padding: 6px 14px;
+  background: white;
+  color: #475569;
+  border: 1px solid #cbd5e0;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.quick-filter-btn:hover {
+  background: #f8fafc;
+  border-color: #94a3b8;
+  color: #1e293b;
+}
+
+.quick-filter-btn.active {
+  background: #3b82f6;
+  border-color: #3b82f6;
+  color: white;
+}
+
+.quick-filter-btn.active:hover {
+  background: #2563eb;
+  border-color: #2563eb;
+}
+
 .filter-select {
   padding: 10px 14px;
   border: 1px solid #cbd5e0;
@@ -199,6 +239,15 @@
   .filter-select,
   .filter-input {
     width: 100%;
+  }
+
+  .quick-filters {
+    padding: 12px 0;
+  }
+
+  .quick-filter-btn {
+    font-size: 12px;
+    padding: 5px 12px;
   }
 
   .companies-table-container {
