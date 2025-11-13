@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
-import { generateBatchEmails } from '../lib/batchEmailGenerator'
 import { sendCampaign } from '../lib/campaignSender'
 import SearchableSelect from './SearchableSelect'
 import API_URL from '../config/api'
@@ -11,6 +10,7 @@ import '../styles/CreateCampaign.css'
 export default function CreateCampaign() {
   const { user } = useAuth()
   const navigate = useNavigate()
+  const [currentStep, setCurrentStep] = useState(1)
   const [loading, setLoading] = useState(false)
   const [companies, setCompanies] = useState([])
   const [loadingCompanies, setLoadingCompanies] = useState(false)
@@ -23,7 +23,6 @@ export default function CreateCampaign() {
     description: '',
     sendDate: '',
     selectedCompanies: [],
-    // Personalization fields
     senderName: '',
     senderCompany: '',
     senderTitle: '',
@@ -32,7 +31,6 @@ export default function CreateCampaign() {
   })
 
   const [referenceEmail, setReferenceEmail] = useState(null)
-
   const [filters, setFilters] = useState({
     minEmployees: '',
     maxEmployees: '',
@@ -40,8 +38,9 @@ export default function CreateCampaign() {
     minRating: '',
     maxRating: ''
   })
-
   const [emailApproved, setEmailApproved] = useState(false)
+
+  const totalSteps = 5
 
   useEffect(() => {
     loadActivities()
@@ -123,23 +122,6 @@ export default function CreateCampaign() {
   }
 
   const generateReferenceEmail = async () => {
-    // Validation
-    if (!formData.description) {
-      alert('Please provide a campaign description')
-      return
-    }
-    if (!formData.senderName || !formData.senderCompany || !formData.senderTitle) {
-      alert('Please fill in all sender information fields')
-      return
-    }
-    if (!formData.valueProposition) {
-      alert('Please provide a value proposition')
-      return
-    }
-    if (!formData.callToAction) {
-      alert('Please provide a call to action')
-      return
-    }
     if (formData.selectedCompanies.length === 0) {
       alert('Please select at least one company first')
       return
@@ -150,14 +132,12 @@ export default function CreateCampaign() {
     setEmailApproved(false)
 
     try {
-      // Get first selected company as reference
       const firstCompany = companies.find(c => c.id === formData.selectedCompanies[0])
 
       if (!firstCompany) {
         throw new Error('Could not find reference company')
       }
 
-      // Generate one reference email using first company
       const { generatePersonalizedEmail } = await import('../lib/aiService')
 
       const email = await generatePersonalizedEmail({
@@ -184,24 +164,8 @@ export default function CreateCampaign() {
   }
 
   const saveCampaign = async () => {
-    if (!formData.name || !formData.category || !formData.description) {
-      alert('Please fill in all required fields')
-      return
-    }
-
-    if (!referenceEmail) {
-      alert('Please generate a reference email first')
-      return
-    }
-
-    if (!emailApproved) {
-      alert('Please approve the email template before saving')
-      return
-    }
-
     setLoading(true)
     try {
-      // Create campaign with reference email and personalization fields
       const { data: campaign, error: campaignError } = await supabase
         .from('campaigns')
         .insert({
@@ -213,7 +177,6 @@ export default function CreateCampaign() {
           email_body: referenceEmail.body,
           send_date: formData.sendDate || null,
           status: 'not-started',
-          // Personalization fields (will be used to generate emails when sending)
           sender_name: formData.senderName,
           sender_company: formData.senderCompany,
           sender_title: formData.senderTitle,
@@ -225,11 +188,10 @@ export default function CreateCampaign() {
 
       if (campaignError) throw campaignError
 
-      // Create campaign recipients (emails will be generated when sending)
       const recipients = formData.selectedCompanies.map(companyId => ({
         campaign_id: campaign.id,
         company_id: companyId,
-        personalized_email: null, // Will be generated when campaign is sent
+        personalized_email: null,
         status: 'pending'
       }))
 
@@ -239,10 +201,8 @@ export default function CreateCampaign() {
 
       if (recipientsError) throw recipientsError
 
-      // If no send date is provided, send immediately
       if (!formData.sendDate) {
         try {
-          console.log('No send date specified, sending campaign immediately...')
           const sendResult = await sendCampaign(campaign.id, user.id)
           alert(`Campaign sent immediately! ${sendResult.sent} emails sent successfully, ${sendResult.failed} failed.`)
           navigate('/')
@@ -252,8 +212,7 @@ export default function CreateCampaign() {
           navigate('/')
         }
       } else {
-        // Campaign is scheduled for future
-        alert(`Campaign scheduled successfully for ${new Date(formData.sendDate).toLocaleString()}! Personalized emails will be generated when the campaign is sent.`)
+        alert(`Campaign scheduled successfully for ${new Date(formData.sendDate).toLocaleString()}!`)
         navigate('/')
       }
     } catch (error) {
@@ -264,279 +223,485 @@ export default function CreateCampaign() {
     }
   }
 
-  return (
-    <div className="page-container">
-      <h2 className="page-title">Create New Campaign</h2>
+  const validateStep = (step) => {
+    switch (step) {
+      case 1:
+        if (!formData.name || !formData.category || !formData.description) {
+          alert('Please fill in all required fields')
+          return false
+        }
+        return true
+      case 2:
+        if (!formData.senderName || !formData.senderCompany || !formData.senderTitle || !formData.valueProposition || !formData.callToAction) {
+          alert('Please fill in all sender information fields')
+          return false
+        }
+        return true
+      case 3:
+        if (formData.selectedCompanies.length === 0) {
+          alert('Please select at least one company')
+          return false
+        }
+        return true
+      case 4:
+        if (!referenceEmail) {
+          alert('Please generate an email preview first')
+          return false
+        }
+        if (!emailApproved) {
+          alert('Please approve the email template before continuing')
+          return false
+        }
+        return true
+      default:
+        return true
+    }
+  }
 
-      <div className="create-form">
-        {/* Campaign Details */}
-        <div className="form-section">
-          <h3>Campaign Details</h3>
-          <div className="form-group">
-            <label>Campaign Name *</label>
-            <input
-              type="text"
-              name="name"
-              value={formData.name}
-              onChange={handleInputChange}
-              placeholder="e.g., Q1 2025 Tech Startups Outreach"
-            />
+  const nextStep = () => {
+    if (validateStep(currentStep)) {
+      setCurrentStep(prev => Math.min(prev + 1, totalSteps))
+    }
+  }
+
+  const prevStep = () => {
+    setCurrentStep(prev => Math.max(prev - 1, 1))
+  }
+
+  const renderProgressBar = () => (
+    <div className="progress-container">
+      <div className="progress-steps">
+        {[1, 2, 3, 4, 5].map((step) => (
+          <div key={step} className="progress-step-wrapper">
+            <div className={`progress-step ${currentStep >= step ? 'active' : ''} ${currentStep > step ? 'completed' : ''}`}>
+              {currentStep > step ? '✓' : step}
+            </div>
+            {step < 5 && <div className={`progress-line ${currentStep > step ? 'completed' : ''}`} />}
           </div>
+        ))}
+      </div>
+      <div className="progress-labels">
+        <span className={currentStep === 1 ? 'active-label' : ''}>Details</span>
+        <span className={currentStep === 2 ? 'active-label' : ''}>Your Info</span>
+        <span className={currentStep === 3 ? 'active-label' : ''}>Audience</span>
+        <span className={currentStep === 4 ? 'active-label' : ''}>Preview</span>
+        <span className={currentStep === 5 ? 'active-label' : ''}>Review</span>
+      </div>
+    </div>
+  )
 
-          <div className="form-group">
-            <label>Category *</label>
-            <input
-              type="text"
-              name="category"
-              value={formData.category}
-              onChange={handleInputChange}
-              placeholder="e.g., Technology, Healthcare, Finance"
-            />
-          </div>
+  const renderStep = () => {
+    switch (currentStep) {
+      case 1:
+        return (
+          <div className="step-content">
+            <h3>Campaign Details</h3>
+            <p className="step-description">Let's start with the basics of your campaign</p>
 
-          <div className="form-group">
-            <label>Send Date (Optional)</label>
-            <input
-              type="datetime-local"
-              name="sendDate"
-              value={formData.sendDate}
-              onChange={handleInputChange}
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Campaign Description *</label>
-            <textarea
-              name="description"
-              value={formData.description}
-              onChange={handleInputChange}
-              rows="4"
-              placeholder="Describe your campaign offering, target audience, and key value propositions..."
-            />
-          </div>
-        </div>
-
-        {/* Target Audience */}
-        <div className="form-section">
-          <h3>Target Audience (Lithuanian Companies)</h3>
-          <div className="filter-controls">
             <div className="form-group">
-              <label>Activity</label>
-              <SearchableSelect
-                options={activities}
-                value={filters.activity}
-                onChange={(value) => setFilters({ ...filters, activity: value })}
-                placeholder="Search activities..."
+              <label>Campaign Name *</label>
+              <input
+                type="text"
+                name="name"
+                value={formData.name}
+                onChange={handleInputChange}
+                placeholder="e.g., Q1 2025 Tech Startups Outreach"
+                className="form-input"
               />
             </div>
 
             <div className="form-group">
-              <label>Min Employees</label>
+              <label>Category *</label>
               <input
-                type="number"
-                name="minEmployees"
-                value={filters.minEmployees}
-                onChange={handleFilterChange}
-                placeholder="e.g., 10"
+                type="text"
+                name="category"
+                value={formData.category}
+                onChange={handleInputChange}
+                placeholder="e.g., Technology, Healthcare, Finance"
+                className="form-input"
               />
             </div>
 
             <div className="form-group">
-              <label>Max Employees</label>
+              <label>Campaign Description *</label>
+              <textarea
+                name="description"
+                value={formData.description}
+                onChange={handleInputChange}
+                rows="5"
+                placeholder="Describe your campaign offering, target audience, and key value propositions..."
+                className="form-textarea"
+              />
+              <small>This will help AI generate personalized emails</small>
+            </div>
+
+            <div className="form-group">
+              <label>Send Date (Optional)</label>
               <input
-                type="number"
-                name="maxEmployees"
-                value={filters.maxEmployees}
-                onChange={handleFilterChange}
-                placeholder="e.g., 200"
+                type="datetime-local"
+                name="sendDate"
+                value={formData.sendDate}
+                onChange={handleInputChange}
+                className="form-input"
+              />
+              <small>Leave empty to send immediately after approval</small>
+            </div>
+          </div>
+        )
+
+      case 2:
+        return (
+          <div className="step-content">
+            <h3>Your Information</h3>
+            <p className="step-description">Tell us about yourself to personalize the outreach</p>
+
+            <div className="form-group">
+              <label>Your Name *</label>
+              <input
+                type="text"
+                name="senderName"
+                value={formData.senderName}
+                onChange={handleInputChange}
+                placeholder="e.g., John Smith"
+                className="form-input"
               />
             </div>
 
             <div className="form-group">
-              <label>Min Rating</label>
+              <label>Your Company *</label>
               <input
-                type="number"
-                name="minRating"
-                value={filters.minRating}
-                onChange={handleFilterChange}
-                placeholder="e.g., 5.0"
-                step="0.1"
+                type="text"
+                name="senderCompany"
+                value={formData.senderCompany}
+                onChange={handleInputChange}
+                placeholder="e.g., Acme Solutions"
+                className="form-input"
               />
             </div>
 
             <div className="form-group">
-              <label>Max Rating</label>
+              <label>Your Title *</label>
               <input
-                type="number"
-                name="maxRating"
-                value={filters.maxRating}
-                onChange={handleFilterChange}
-                placeholder="e.g., 10.0"
-                step="0.1"
+                type="text"
+                name="senderTitle"
+                value={formData.senderTitle}
+                onChange={handleInputChange}
+                placeholder="e.g., Business Development Manager"
+                className="form-input"
               />
+            </div>
+
+            <div className="form-group">
+              <label>Value Proposition *</label>
+              <textarea
+                name="valueProposition"
+                value={formData.valueProposition}
+                onChange={handleInputChange}
+                rows="4"
+                placeholder="What value do you offer? e.g., We help companies reduce operational costs by 30% through AI automation"
+                className="form-textarea"
+              />
+            </div>
+
+            <div className="form-group">
+              <label>Call to Action *</label>
+              <input
+                type="text"
+                name="callToAction"
+                value={formData.callToAction}
+                onChange={handleInputChange}
+                placeholder="e.g., Schedule a 15-minute demo call"
+                className="form-input"
+              />
+            </div>
+          </div>
+        )
+
+      case 3:
+        return (
+          <div className="step-content">
+            <h3>Target Audience</h3>
+            <p className="step-description">Select Lithuanian companies to target</p>
+
+            <div className="filter-grid">
+              <div className="form-group">
+                <label>Activity</label>
+                <SearchableSelect
+                  options={activities}
+                  value={filters.activity}
+                  onChange={(value) => setFilters({ ...filters, activity: value })}
+                  placeholder="Search activities..."
+                />
+              </div>
+
+              <div className="form-group">
+                <label>Min Employees</label>
+                <input
+                  type="number"
+                  name="minEmployees"
+                  value={filters.minEmployees}
+                  onChange={handleFilterChange}
+                  placeholder="e.g., 10"
+                  className="form-input"
+                />
+              </div>
+
+              <div className="form-group">
+                <label>Max Employees</label>
+                <input
+                  type="number"
+                  name="maxEmployees"
+                  value={filters.maxEmployees}
+                  onChange={handleFilterChange}
+                  placeholder="e.g., 200"
+                  className="form-input"
+                />
+              </div>
+
+              <div className="form-group">
+                <label>Min Rating</label>
+                <input
+                  type="number"
+                  name="minRating"
+                  value={filters.minRating}
+                  onChange={handleFilterChange}
+                  placeholder="e.g., 5.0"
+                  step="0.1"
+                  className="form-input"
+                />
+              </div>
+
+              <div className="form-group">
+                <label>Max Rating</label>
+                <input
+                  type="number"
+                  name="maxRating"
+                  value={filters.maxRating}
+                  onChange={handleFilterChange}
+                  placeholder="e.g., 10.0"
+                  step="0.1"
+                  className="form-input"
+                />
+              </div>
             </div>
 
             <button onClick={loadCompanies} className="primary-btn" disabled={loadingCompanies}>
-              {loadingCompanies ? 'Loading...' : 'Load Companies'}
+              {loadingCompanies ? 'Loading...' : 'Find Companies'}
             </button>
-          </div>
 
-          {companies.length > 0 && (
-            <div className="companies-list">
-              <p><strong>Found {companies.length} companies</strong></p>
-              <div className="companies-preview">
-                {companies.slice(0, 10).map((company) => (
-                  <div key={company.id} className="company-item">
-                    <input
-                      type="checkbox"
-                      id={`company-${company.id}`}
-                      checked={formData.selectedCompanies.includes(company.id)}
-                      onChange={() => toggleCompanySelection(company.id)}
-                    />
-                    <label htmlFor={`company-${company.id}`}>
-                      {company.company_name} - {company.email || 'No email'}
-                      {company.activity && <span className="company-industry"> ({company.activity})</span>}
-                      {company.employees && <span> - {company.employees} employees</span>}
-                    </label>
+            {companies.length > 0 && (
+              <div className="companies-section">
+                <div className="companies-header">
+                  <h4>Found {companies.length} companies</h4>
+                  <button onClick={selectAllCompanies} className="secondary-btn">
+                    Select All
+                  </button>
+                </div>
+
+                <div className="companies-list">
+                  {companies.map((company) => (
+                    <div key={company.id} className="company-item">
+                      <input
+                        type="checkbox"
+                        id={`company-${company.id}`}
+                        checked={formData.selectedCompanies.includes(company.id)}
+                        onChange={() => toggleCompanySelection(company.id)}
+                      />
+                      <label htmlFor={`company-${company.id}`}>
+                        <strong>{company.company_name}</strong>
+                        {company.email && <span className="company-email"> • {company.email}</span>}
+                        {company.activity && <div className="company-meta">{company.activity}</div>}
+                        {company.employees && <span className="company-meta">{company.employees} employees</span>}
+                      </label>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="selection-summary">
+                  Selected: <strong>{formData.selectedCompanies.length}</strong> companies
+                </div>
+              </div>
+            )}
+          </div>
+        )
+
+      case 4:
+        return (
+          <div className="step-content">
+            <h3>Email Preview</h3>
+            <p className="step-description">Generate and review a sample email before sending</p>
+
+            <div className="preview-info">
+              <p>Generate a reference email using one of your selected companies. Unique personalized emails will be created for each recipient when you send the campaign.</p>
+            </div>
+
+            <button
+              onClick={generateReferenceEmail}
+              className="primary-btn"
+              disabled={generatingEmail}
+            >
+              {generatingEmail ? 'Generating...' : referenceEmail ? 'Regenerate Preview' : 'Generate Email Preview'}
+            </button>
+
+            {referenceEmail && (
+              <div className="email-preview-card">
+                <div className="preview-badge">
+                  Sample for: <strong>{referenceEmail.companyName}</strong>
+                </div>
+
+                <div className="email-content">
+                  <div className="email-subject">
+                    <label>Subject:</label>
+                    <div>{referenceEmail.subject}</div>
                   </div>
-                ))}
-                {companies.length > 10 && (
-                  <p className="more-companies">... and {companies.length - 10} more</p>
+
+                  <div className="email-body">
+                    <label>Body:</label>
+                    <div className="email-text">{referenceEmail.body}</div>
+                  </div>
+                </div>
+
+                <div className="preview-note">
+                  Each of the {formData.selectedCompanies.length} selected companies will receive a unique, personalized version.
+                </div>
+
+                {!emailApproved && (
+                  <button
+                    onClick={() => setEmailApproved(true)}
+                    className="approve-btn"
+                  >
+                    Approve Template ✓
+                  </button>
+                )}
+
+                {emailApproved && (
+                  <div className="approved-badge">
+                    ✓ Template Approved
+                  </div>
                 )}
               </div>
-              <button onClick={selectAllCompanies} className="secondary-btn">
-                Select All ({companies.length})
-              </button>
-              <p className="selected-count">
-                Selected: {formData.selectedCompanies.length} companies
-              </p>
-            </div>
-          )}
-        </div>
-
-        {/* Personalization Fields */}
-        <div className="form-section">
-          <h3>Personalization Fields</h3>
-          <p className="help-text">These fields will be used to personalize emails for each company</p>
-
-          <div className="form-group">
-            <label>Your Name *</label>
-            <input
-              type="text"
-              name="senderName"
-              value={formData.senderName}
-              onChange={handleInputChange}
-              placeholder="e.g., John Smith"
-            />
+            )}
           </div>
+        )
 
-          <div className="form-group">
-            <label>Your Company *</label>
-            <input
-              type="text"
-              name="senderCompany"
-              value={formData.senderCompany}
-              onChange={handleInputChange}
-              placeholder="e.g., Acme Solutions"
-            />
-          </div>
+      case 5:
+        return (
+          <div className="step-content">
+            <h3>Review & Send</h3>
+            <p className="step-description">Review your campaign before sending</p>
 
-          <div className="form-group">
-            <label>Your Title *</label>
-            <input
-              type="text"
-              name="senderTitle"
-              value={formData.senderTitle}
-              onChange={handleInputChange}
-              placeholder="e.g., Business Development Manager"
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Value Proposition *</label>
-            <textarea
-              name="valueProposition"
-              value={formData.valueProposition}
-              onChange={handleInputChange}
-              rows="3"
-              placeholder="What value do you offer? e.g., We help companies reduce operational costs by 30% through AI automation"
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Call to Action *</label>
-            <input
-              type="text"
-              name="callToAction"
-              value={formData.callToAction}
-              onChange={handleInputChange}
-              placeholder="e.g., Schedule a 15-minute demo call"
-            />
-          </div>
-        </div>
-
-        {/* AI Email Generation */}
-        <div className="form-section">
-          <h3>Generate Reference Email</h3>
-          <p className="help-text">
-            Generate one sample email to preview the AI template. Unique emails for each company will be created automatically when you send the campaign.
-          </p>
-
-          <button
-            onClick={generateReferenceEmail}
-            className="primary-btn"
-            disabled={generatingEmail || formData.selectedCompanies.length === 0}
-          >
-            {generatingEmail ? 'Generating...' : 'Generate Email Preview'}
-          </button>
-
-          {referenceEmail && (
-            <div className="email-preview">
-              <div className="preview-header">
-                <h4>Reference Email Preview</h4>
-                <p className="help-text">
-                  Sample generated using: <strong>{referenceEmail.companyName}</strong>
-                </p>
-                <p className="help-text">
-                  Each of the {formData.selectedCompanies.length} selected companies will receive a personalized version when you send the campaign.
-                </p>
-              </div>
-
-              <div className="email-sample">
-                <div className="email-header">
-                  <strong>Subject:</strong> {referenceEmail.subject}
+            <div className="review-card">
+              <div className="review-section">
+                <h4>Campaign Details</h4>
+                <div className="review-item">
+                  <span>Name:</span>
+                  <strong>{formData.name}</strong>
                 </div>
-                <div className="email-body">{referenceEmail.body}</div>
+                <div className="review-item">
+                  <span>Category:</span>
+                  <strong>{formData.category}</strong>
+                </div>
+                <div className="review-item">
+                  <span>Send Date:</span>
+                  <strong>{formData.sendDate ? new Date(formData.sendDate).toLocaleString() : 'Immediately'}</strong>
+                </div>
               </div>
 
-              <div className="email-actions">
-                <button onClick={generateReferenceEmail} className="secondary-btn" disabled={generatingEmail}>
-                  Regenerate Preview
-                </button>
-                <button
-                  onClick={() => setEmailApproved(true)}
-                  className="primary-btn"
-                  disabled={emailApproved}
-                >
-                  {emailApproved ? 'Template Approved ✓' : 'Approve Template'}
-                </button>
+              <div className="review-section">
+                <h4>Sender Information</h4>
+                <div className="review-item">
+                  <span>From:</span>
+                  <strong>{formData.senderName}, {formData.senderTitle}</strong>
+                </div>
+                <div className="review-item">
+                  <span>Company:</span>
+                  <strong>{formData.senderCompany}</strong>
+                </div>
+              </div>
+
+              <div className="review-section">
+                <h4>Recipients</h4>
+                <div className="review-item">
+                  <span>Total Companies:</span>
+                  <strong>{formData.selectedCompanies.length}</strong>
+                </div>
+              </div>
+
+              <div className="review-section">
+                <h4>Email Template</h4>
+                <div className="review-item">
+                  <span>Subject:</span>
+                  <strong>{referenceEmail?.subject}</strong>
+                </div>
+                <div className="email-snippet">
+                  {referenceEmail?.body.substring(0, 150)}...
+                </div>
               </div>
             </div>
-          )}
-        </div>
 
-        {/* Form Actions */}
-        <div className="form-actions">
-          <button onClick={() => navigate('/')} className="secondary-btn">
-            Cancel
-          </button>
-          <button
-            onClick={saveCampaign}
-            className="primary-btn"
-            disabled={loading || !emailApproved || !referenceEmail}
-          >
-            {loading ? 'Saving...' : 'Save Campaign'}
-          </button>
+            <div className="final-note">
+              {formData.sendDate ?
+                `This campaign will be sent on ${new Date(formData.sendDate).toLocaleString()}` :
+                'This campaign will be sent immediately after you click "Send Campaign"'
+              }
+            </div>
+          </div>
+        )
+
+      default:
+        return null
+    }
+  }
+
+  return (
+    <div className="page-container">
+      <div className="wizard-header">
+        <h2 className="page-title">Create New Campaign</h2>
+        <div className="step-indicator">Step {currentStep} of {totalSteps}</div>
+      </div>
+
+      {renderProgressBar()}
+
+      <div className="wizard-content">
+        {renderStep()}
+      </div>
+
+      <div className="wizard-navigation">
+        <button
+          onClick={() => navigate('/')}
+          className="cancel-btn"
+        >
+          Cancel
+        </button>
+
+        <div className="nav-buttons">
+          {currentStep > 1 && (
+            <button
+              onClick={prevStep}
+              className="secondary-btn"
+            >
+              ← Previous
+            </button>
+          )}
+
+          {currentStep < totalSteps && (
+            <button
+              onClick={nextStep}
+              className="primary-btn"
+            >
+              Next →
+            </button>
+          )}
+
+          {currentStep === totalSteps && (
+            <button
+              onClick={saveCampaign}
+              className="primary-btn send-btn"
+              disabled={loading}
+            >
+              {loading ? 'Sending...' : formData.sendDate ? 'Schedule Campaign' : 'Send Campaign'}
+            </button>
+          )}
         </div>
       </div>
     </div>
