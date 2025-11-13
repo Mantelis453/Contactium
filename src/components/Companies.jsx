@@ -25,13 +25,14 @@ export default function Companies() {
   const [maxRating, setMaxRating] = useState('')
 
   // Quick filter categories for Lithuanian businesses
+  // These match the activity field values from the database
   const quickFilters = [
-    { label: 'Maitinimo įstaigos', search: 'maitinimo' },
-    { label: 'Reklamos agentūros', search: 'reklamos' },
-    { label: 'IT įmonės', search: 'informacijos technologij' },
-    { label: 'Statybos įmonės', search: 'statybos' },
-    { label: 'Transporto įmonės', search: 'transporto' },
-    { label: 'Prekybos įmonės', search: 'prekyb' }
+    { label: 'Maitinimo įstaigos', activity: 'Maitinimo ir gėrimų teikimo veikla' },
+    { label: 'Reklamos agentūros', activity: 'Reklamos agentūrų veikla' },
+    { label: 'IT įmonės', activity: 'Informacinių technologijų ir kompiuterių programavimo veikla' },
+    { label: 'Statybos įmonės', activity: 'Statybos darbai' },
+    { label: 'Transporto įmonės', activity: 'Sausumos transporto veikla' },
+    { label: 'Prekybos įmonės', activity: 'Didmeninė ir mažmeninė prekyba' }
   ]
 
   // Debounce search query - wait 500ms after user stops typing
@@ -121,10 +122,10 @@ export default function Companies() {
     setMaxRating('')
   }
 
-  const applyQuickFilter = (searchTerm) => {
-    setSearchQuery(searchTerm)
-    // Clear other filters when applying quick filter
-    setActivityFilter('all')
+  const applyQuickFilter = (activityName) => {
+    setActivityFilter(activityName)
+    // Clear search when applying quick filter
+    setSearchQuery('')
   }
 
   if (loading && companies.length === 0) {
@@ -154,8 +155,8 @@ export default function Companies() {
           {quickFilters.map((filter, index) => (
             <button
               key={index}
-              onClick={() => applyQuickFilter(filter.search)}
-              className={`quick-filter-btn ${searchQuery === filter.search ? 'active' : ''}`}
+              onClick={() => applyQuickFilter(filter.activity)}
+              className={`quick-filter-btn ${activityFilter === filter.activity ? 'active' : ''}`}
               title={`Filter by ${filter.label}`}
             >
               {filter.label}
