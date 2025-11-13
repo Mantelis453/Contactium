@@ -22,6 +22,9 @@ Deno.serve(async (req) => {
     let query = supabase
       .from('companies')
       .select('*', { count: 'exact' })
+      .not('email', 'is', null)
+      .neq('email', '')
+      .not('email', 'ilike', '%neviešinama%')
       .order('created_at', { ascending: false })
 
     // Apply filters
