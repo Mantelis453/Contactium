@@ -8,6 +8,8 @@ export default function Subscription() {
   const { user } = useAuth()
   const { subscription, usage, loading: contextLoading, refreshSubscription } = useSubscriptionContext()
   const [checkingOut, setCheckingOut] = useState(false)
+  const [billingInfo, setBillingInfo] = useState(null)
+  const [loadingBilling, setLoadingBilling] = useState(false)
 
   useEffect(() => {
     // Check if user just returned from successful checkout
@@ -37,6 +39,30 @@ export default function Subscription() {
       return () => clearInterval(pollInterval)
     }
   }, [])
+
+  useEffect(() => {
+    // Load billing info for paid subscriptions
+    if (subscription && subscription.tier !== 'free' && subscription.stripeSubscriptionId) {
+      loadBillingInfo()
+    }
+  }, [subscription])
+
+  const loadBillingInfo = async () => {
+    try {
+      setLoadingBilling(true)
+      const response = await fetch(`${API_URL}/stripe-data?userId=${user.id}&type=billing`)
+
+      const data = await response.json()
+
+      if (response.ok && data) {
+        setBillingInfo(data)
+      }
+    } catch (error) {
+      console.error('Error loading billing info:', error)
+    } finally {
+      setLoadingBilling(false)
+    }
+  }
 
   const handleUpgrade = async (tier) => {
     try {
@@ -226,6 +252,95 @@ export default function Subscription() {
           </div>
         )}
       </div>
+
+      {/* Billing Details for Paid Plans */}
+      {tier !== 'free' && subscription?.stripeSubscriptionId && (
+        <>
+          {loadingBilling ? (
+            <div className="billing-loading">
+              <p>Loading billing information...</p>
+            </div>
+          ) : billingInfo && (
+            <>
+              {/* Billing Info */}
+              <div className="billing-details">
+                <h4>💳 Billing Information</h4>
+                <div className="billing-info-grid">
+                  {billingInfo.nextBillingDate && (
+                    <div className="billing-item">
+                      <span className="billing-label">Next Billing Date</span>
+                      <span className="billing-value">
+                        {new Date(billingInfo.nextBillingDate).toLocaleDateString('en-US', {
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric'
+                        })}
+                      </span>
+                    </div>
+                  )}
+                  {billingInfo.amount && (
+                    <div className="billing-item">
+                      <span className="billing-label">Amount</span>
+                      <span className="billing-value">€{(billingInfo.amount / 100).toFixed(2)}</span>
+                    </div>
+                  )}
+                  {billingInfo.paymentMethod && (
+                    <div className="billing-item">
+                      <span className="billing-label">Payment Method</span>
+                      <span className="billing-value">
+                        {billingInfo.paymentMethod.brand?.toUpperCase()} •••• {billingInfo.paymentMethod.last4}
+                        <span className="card-expiry"> (Exp: {billingInfo.paymentMethod.exp_month}/{billingInfo.paymentMethod.exp_year})</span>
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Payment History */}
+              {billingInfo.invoices && billingInfo.invoices.length > 0 && (
+                <div className="payment-history">
+                  <h4>📄 Recent Invoices</h4>
+                  <div className="invoices-list">
+                    {billingInfo.invoices.map((invoice) => (
+                      <div key={invoice.id} className="invoice-item">
+                        <div className="invoice-info">
+                          <span className="invoice-date">
+                            {new Date(invoice.created * 1000).toLocaleDateString('en-US', {
+                              year: 'numeric',
+                              month: 'short',
+                              day: 'numeric'
+                            })}
+                          </span>
+                          <span className="invoice-description">{invoice.description || 'Subscription'}</span>
+                        </div>
+                        <div className="invoice-actions">
+                          <span className={`invoice-status ${invoice.status}`}>
+                            {invoice.status === 'paid' && '✓ Paid'}
+                            {invoice.status === 'open' && '⏳ Pending'}
+                            {invoice.status === 'void' && '✗ Void'}
+                            {invoice.status === 'uncollectible' && '⚠️ Failed'}
+                          </span>
+                          <span className="invoice-amount">€{(invoice.amount / 100).toFixed(2)}</span>
+                          {invoice.invoice_pdf && (
+                            <a
+                              href={invoice.invoice_pdf}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="invoice-download"
+                            >
+                              ⬇ PDF
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </>
+      )}
 
       {/* Action Buttons */}
       <div className="subscription-actions">

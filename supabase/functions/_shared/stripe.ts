@@ -213,3 +213,76 @@ export async function incrementEmailCount(userId: string, count = 1) {
 
   return { success: true }
 }
+
+export async function getBillingInfo(userId: string) {
+  const supabase = createSupabaseClient()
+
+  const { data: userSettings } = await supabase
+    .from('user_settings')
+    .select('stripe_customer_id, stripe_subscription_id')
+    .eq('user_id', userId)
+    .single()
+
+  if (!userSettings?.stripe_customer_id || !userSettings?.stripe_subscription_id) {
+    return null
+  }
+
+  try {
+    // Get subscription details
+    const subscription = await stripe.subscriptions.retrieve(userSettings.stripe_subscription_id, {
+      expand: ['default_payment_method']
+    })
+
+    // Get payment method
+    let paymentMethod = null
+    if (subscription.default_payment_method && typeof subscription.default_payment_method === 'object') {
+      const pm = subscription.default_payment_method as Stripe.PaymentMethod
+      if (pm.card) {
+        paymentMethod = {
+          brand: pm.card.brand,
+          last4: pm.card.last4,
+          exp_month: pm.card.exp_month,
+          exp_year: pm.card.exp_year
+        }
+      }
+    }
+
+    // Get upcoming invoice (next billing date and amount)
+    let nextBillingDate = null
+    let amount = null
+    try {
+      const upcomingInvoice = await stripe.invoices.retrieveUpcoming({
+        customer: userSettings.stripe_customer_id
+      })
+      nextBillingDate = upcomingInvoice.next_payment_attempt ? new Date(upcomingInvoice.next_payment_attempt * 1000).toISOString() : null
+      amount = upcomingInvoice.amount_due
+    } catch (err) {
+      console.log('No upcoming invoice found:', err)
+    }
+
+    // Get recent invoices (last 5)
+    const invoicesList = await stripe.invoices.list({
+      customer: userSettings.stripe_customer_id,
+      limit: 5
+    })
+
+    const invoices = invoicesList.data.map(invoice => ({
+      id: invoice.id,
+      amount: invoice.amount_paid,
+      status: invoice.status,
+      created: invoice.created,
+      invoice_pdf: invoice.invoice_pdf,
+      description: invoice.lines.data[0]?.description || 'Subscription'
+    }))
+
+    return {
+      nextBillingDate,
+      amount,
+      paymentMethod,
+      invoices
+    }
+  } catch (error) {
+    console.error('Error fetching billing info:', error)
+    throw error
+  }
+}

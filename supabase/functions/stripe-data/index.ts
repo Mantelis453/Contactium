@@ -1,5 +1,5 @@
 import { corsHeaders } from '../_shared/cors.ts'
-import { getSubscriptionInfo, checkUsageLimit } from '../_shared/stripe.ts'
+import { getSubscriptionInfo, checkUsageLimit, getBillingInfo } from '../_shared/stripe.ts'
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -41,8 +41,16 @@ Deno.serve(async (req) => {
       )
     }
 
+    if (type === 'billing') {
+      const billing = await getBillingInfo(userId)
+      return new Response(
+        JSON.stringify(billing),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
     return new Response(
-      JSON.stringify({ error: 'Invalid type. Must be "subscription" or "usage"' }),
+      JSON.stringify({ error: 'Invalid type. Must be "subscription", "usage", or "billing"' }),
       { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   } catch (error) {
