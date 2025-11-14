@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../hooks/useAuth'
 import { useSubscription as useSubscriptionContext } from '../contexts/SubscriptionContext'
+import { supabase } from '../config/supabase'
 import API_URL from '../config/api'
 import '../styles/Subscription.css'
 
@@ -59,7 +60,18 @@ export default function Subscription() {
   const loadBillingInfo = async () => {
     try {
       setLoadingBilling(true)
-      const response = await fetch(`${API_URL}/stripe-data?userId=${user.id}&type=billing`)
+
+      // Get the current session token for authentication
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) {
+        throw new Error('No active session')
+      }
+
+      const response = await fetch(`${API_URL}/stripe-data?userId=${user.id}&type=billing`, {
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`
+        }
+      })
 
       const data = await response.json()
 
@@ -77,10 +89,17 @@ export default function Subscription() {
     try {
       setCheckingOut(true)
 
+      // Get the current session token for authentication
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) {
+        throw new Error('No active session')
+      }
+
       const response = await fetch(`${API_URL}/stripe-session`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
         },
         body: JSON.stringify({
           type: 'checkout',
@@ -122,10 +141,17 @@ export default function Subscription() {
     try {
       setCheckingOut(true)
 
+      // Get the current session token for authentication
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) {
+        throw new Error('No active session')
+      }
+
       const response = await fetch(`${API_URL}/stripe-session`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
         },
         body: JSON.stringify({
           type: 'portal',
