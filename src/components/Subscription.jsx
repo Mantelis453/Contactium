@@ -191,16 +191,6 @@ export default function Subscription() {
   const tier = subscription?.tier || 'free'
   const status = subscription?.status || 'active'
 
-  // Get limits from subscription or use defaults
-  const emailLimit = subscription?.email_limit || 10
-  const contactLimit = subscription?.contact_limit || 25
-  const campaignLimit = subscription?.campaign_limit || 1
-
-  // Usage data (to be implemented with actual tracking)
-  const emailsSent = 0 // TODO: Track actual usage
-  const remaining = emailLimit - emailsSent
-  const usagePercentage = (emailsSent / emailLimit) * 100
-
   const tierInfo = {
     free: {
       name: 'Free Plan',
@@ -263,40 +253,6 @@ export default function Subscription() {
             </div>
           ))}
         </div>
-      </div>
-
-      {/* Usage Stats */}
-      <div className="usage-stats">
-        <h4>Monthly Email Usage</h4>
-        <div className="usage-bar-container">
-          <div className="usage-bar">
-            <div
-              className="usage-fill"
-              style={{
-                width: `${Math.min(usagePercentage, 100)}%`,
-                backgroundColor: usagePercentage > 90 ? '#ef4444' : usagePercentage > 70 ? '#f59e0b' : '#10b981'
-              }}
-            />
-          </div>
-          <div className="usage-text">
-            <span className="usage-numbers">
-              <strong>{emailsSent}</strong> of <strong>{emailLimit}</strong> emails sent
-            </span>
-            <span className="usage-remaining">
-              {remaining > 0 ? `${remaining} remaining` : 'Limit reached'}
-            </span>
-          </div>
-        </div>
-        {remaining === 0 && (
-          <div className="warning-box" style={{ marginTop: '1rem' }}>
-            ⚠️ You've reached your monthly email limit. Upgrade to send more emails.
-          </div>
-        )}
-        {remaining > 0 && remaining <= 5 && tier === 'free' && (
-          <div className="info-box" style={{ marginTop: '1rem' }}>
-            💡 Running low on emails? Upgrade to continue your campaigns without interruption.
-          </div>
-        )}
       </div>
 
       {/* Billing Details for Paid Plans */}
