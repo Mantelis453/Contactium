@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../hooks/useAuth'
 import { useSubscription as useSubscriptionContext } from '../contexts/SubscriptionContext'
-import { supabase } from '../config/supabase'
+import { supabase } from '../supabase'
 import API_URL from '../config/api'
 import '../styles/Subscription.css'
 
