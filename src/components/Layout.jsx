@@ -5,7 +5,7 @@ import '../styles/Layout.css'
 
 export default function Layout({ children }) {
   const { user, signOut } = useAuth()
-  const { currentPlan, usage, loading, canCreateCampaign, getCampaignCount } = useSubscription()
+  const { currentPlan, canCreateCampaign, getCampaignCount } = useSubscription()
   const location = useLocation()
   const navigate = useNavigate()
 
@@ -20,14 +20,6 @@ export default function Layout({ children }) {
     } else {
       navigate('/create')
     }
-  }
-
-  const getUsageColor = () => {
-    if (!usage) return '#10b981'
-    const percentage = (usage.emailsSent / usage.emailLimit) * 100
-    if (percentage >= 90) return '#ef4444'
-    if (percentage >= 70) return '#f59e0b'
-    return '#10b981'
   }
 
   return (
@@ -73,23 +65,6 @@ export default function Layout({ children }) {
             >
               Settings
             </Link>
-            {!loading && currentPlan && (
-              <Link to="/settings" className="plan-badge" style={{
-                borderColor: currentPlan.color,
-                backgroundColor: currentPlan.bgColor
-              }}>
-                <div className="plan-info">
-                  <span className="plan-name" style={{ color: currentPlan.color }}>
-                    {currentPlan.name} Plan
-                  </span>
-                  {usage && (
-                    <span className="plan-usage" style={{ color: getUsageColor() }}>
-                      {usage.emailsSent}/{usage.emailLimit}
-                    </span>
-                  )}
-                </div>
-              </Link>
-            )}
             <span className="user-email">{user?.email}</span>
             <button onClick={signOut} className="signout-btn">
               Sign Out
