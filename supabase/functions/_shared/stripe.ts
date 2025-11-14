@@ -38,7 +38,7 @@ export async function createCheckoutSession(userId: string, tier: string, email:
   // Get or create Stripe customer
   const { data: userSettings } = await supabase
     .from('user_settings')
-    .select('stripe_customer_id')
+    .select('stripe_customer_id, stripe_subscription_id, subscription_tier')
     .eq('user_id', userId)
     .single()
 
@@ -60,7 +60,62 @@ export async function createCheckoutSession(userId: string, tier: string, email:
       })
   }
 
-  // Create checkout session
+  // Check for existing active subscription
+  if (userSettings?.stripe_subscription_id) {
+    try {
+      const existingSubscription = await stripe.subscriptions.retrieve(userSettings.stripe_subscription_id)
+
+      // If subscription is active or trialing, we need to handle the upgrade/change
+      if (existingSubscription.status === 'active' || existingSubscription.status === 'trialing') {
+        const currentPriceId = existingSubscription.items.data[0]?.price.id
+        const newPriceId = pricing[tier as keyof typeof pricing].priceId
+
+        // If trying to subscribe to the same plan, return error
+        if (currentPriceId === newPriceId) {
+          throw new Error('You are already subscribed to this plan')
+        }
+
+        // Update the existing subscription instead of creating a new one
+        console.log('[Checkout] Updating existing subscription from', currentPriceId, 'to', newPriceId)
+
+        const updatedSubscription = await stripe.subscriptions.update(existingSubscription.id, {
+          items: [{
+            id: existingSubscription.items.data[0].id,
+            price: newPriceId
+          }],
+          proration_behavior: 'always_invoice', // Charge/credit immediately for the change
+          billing_cycle_anchor: 'unchanged' // Keep the same billing date
+        })
+
+        // Update database immediately
+        await supabase
+          .from('user_settings')
+          .update({
+            subscription_tier: tier,
+            subscription_status: 'active',
+            subscription_end_date: new Date(updatedSubscription.current_period_end * 1000).toISOString(),
+            updated_at: new Date().toISOString()
+          })
+          .eq('user_id', userId)
+
+        // Return success - no need for checkout
+        return {
+          sessionId: null,
+          url: `${Deno.env.get('APP_URL')}/settings?upgraded=true`,
+          upgraded: true
+        }
+      } else {
+        // If subscription is canceled, past_due, or incomplete, cancel it properly
+        console.log('[Checkout] Canceling previous subscription with status:', existingSubscription.status)
+        await stripe.subscriptions.cancel(existingSubscription.id)
+      }
+    } catch (error) {
+      // If subscription doesn't exist or can't be retrieved, continue with new checkout
+      console.log('[Checkout] Could not retrieve existing subscription:', error.message)
+    }
+  }
+
+  // Create checkout session for new subscription
   const session = await stripe.checkout.sessions.create({
     customer: customerId,
     mode: 'subscription',
@@ -76,6 +131,12 @@ export async function createCheckoutSession(userId: string, tier: string, email:
     metadata: {
       userId,
       tier
+    },
+    subscription_data: {
+      metadata: {
+        userId,
+        tier
+      }
     }
   })
 

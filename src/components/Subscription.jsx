@@ -12,8 +12,17 @@ export default function Subscription() {
   const [loadingBilling, setLoadingBilling] = useState(false)
 
   useEffect(() => {
-    // Check if user just returned from successful checkout
+    // Check if user just returned from successful checkout or upgrade
     const params = new URLSearchParams(window.location.search)
+
+    if (params.get('upgraded') === 'true') {
+      console.log('[Subscription] Plan upgraded successfully')
+      alert('Your subscription has been upgraded successfully! Your new plan is now active.')
+      refreshSubscription()
+      window.history.replaceState({}, '', window.location.pathname)
+      return
+    }
+
     if (params.get('success') === 'true') {
       console.log('[Subscription] Payment successful, starting polling for updates...')
 
@@ -89,7 +98,18 @@ export default function Subscription() {
         throw new Error(errorMsg)
       }
 
-      window.location.href = data.url
+      // Check if this was an instant upgrade (no checkout needed)
+      if (data.upgraded) {
+        alert('Your subscription has been upgraded successfully! Your new plan is now active.')
+        await refreshSubscription()
+        // Reload billing info
+        if (tier !== 'free') {
+          loadBillingInfo()
+        }
+      } else {
+        // Redirect to Stripe checkout
+        window.location.href = data.url
+      }
     } catch (error) {
       console.error('Error creating checkout session:', error)
       alert(`Failed to start checkout: ${error.message}`)

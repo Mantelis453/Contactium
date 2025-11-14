@@ -91,14 +91,33 @@ Deno.serve(async (req) => {
 
         console.log('[Webhook] Found user:', user.id)
 
+        // Get current user settings to check for existing subscription
+        const { data: existingSettings } = await supabase
+          .from('user_settings')
+          .select('stripe_subscription_id')
+          .eq('user_id', user.id)
+          .single()
+
+        // If user has a different subscription, cancel it in Stripe
+        if (existingSettings?.stripe_subscription_id && existingSettings.stripe_subscription_id !== session.subscription) {
+          try {
+            console.log('[Webhook] Canceling old subscription:', existingSettings.stripe_subscription_id)
+            await stripe.subscriptions.cancel(existingSettings.stripe_subscription_id)
+          } catch (error) {
+            console.error('[Webhook] Error canceling old subscription:', error)
+          }
+        }
+
         // Get subscription details
         let subscriptionId: string | null = null
         let priceId: string | null = null
+        let currentPeriodEnd: number | null = null
 
         if (session.subscription) {
           subscriptionId = session.subscription as string
           const subscription = await stripe.subscriptions.retrieve(subscriptionId)
           priceId = subscription.items.data[0]?.price.id
+          currentPeriodEnd = subscription.current_period_end
         } else if (session.line_items) {
           const lineItems = await stripe.checkout.sessions.listLineItems(session.id)
           priceId = lineItems.data[0]?.price?.id
@@ -118,8 +137,8 @@ Deno.serve(async (req) => {
             stripe_subscription_id: subscriptionId,
             subscription_tier: tier,
             subscription_status: 'active',
-            subscription_end_date: subscriptionId
-              ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+            subscription_end_date: currentPeriodEnd
+              ? new Date(currentPeriodEnd * 1000).toISOString()
               : null,
             updated_at: new Date().toISOString()
           }, {
