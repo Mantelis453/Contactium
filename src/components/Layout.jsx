@@ -65,6 +65,12 @@ export default function Layout({ children }) {
             >
               Settings
             </Link>
+            <Link
+              to="/help"
+              className={`nav-btn ${isActive('/help') ? 'active' : ''}`}
+            >
+              Help
+            </Link>
             <span className="user-email">{user?.email}</span>
             <button onClick={signOut} className="signout-btn">
               Sign Out

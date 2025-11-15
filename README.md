@@ -88,45 +88,22 @@ npm run dev
 
 The app will open at http://localhost:5173
 
-## Usage Guide
+## Documentation
 
-### First Time Setup
+### User Documentation
+
+- **[User Guide](USER_GUIDE.md)**: Comprehensive guide for end users covering all features, best practices, and workflows
+- **In-App Help**: Access help documentation directly in the application via the Help menu
+
+### Quick Start
 
 1. **Sign Up**: Create an account with email and password
-2. **Configure Settings**:
-   - Go to Settings page
-   - Add your sender name and email
-   - Choose AI Provider (OpenAI or Google Gemini)
-   - Add your API key for the selected provider
-   - Set daily email limit (recommended: 50-100)
-   - Click "Save Settings"
+2. **Configure Settings**: Add sender information and API keys
+3. **Add Contacts**: Create contact lists or add companies to your database
+4. **Create Campaign**: Use AI to generate personalized cold emails
+5. **Launch & Track**: Monitor performance on your dashboard
 
-### Creating a Campaign
-
-1. **Go to Create Campaign** page
-2. **Fill in Campaign Details**:
-   - Campaign name
-   - Category (e.g., Technology, Healthcare)
-   - Optional send date
-   - Description of your offering and value proposition
-3. **Filter Target Companies**:
-   - Select company size, industry, and location
-   - Click "Load Companies"
-   - Select companies you want to target
-4. **Generate Email with AI**:
-   - Click "Generate Email with AI"
-   - Review the generated subject and body
-   - Regenerate if needed
-   - Click "Approve Email"
-5. **Save Campaign**:
-   - Click "Save Campaign"
-   - Your campaign is now created!
-
-### Managing Campaigns
-
-- **Dashboard**: View campaign statistics and recent campaigns
-- **Campaigns**: View all campaigns with filtering and search
-- **Delete**: Remove campaigns you no longer need
+For detailed instructions, see the [User Guide](USER_GUIDE.md).
 
 ## Project Structure
 
@@ -218,10 +195,16 @@ The AI creates:
 
 ## Support
 
-For issues or questions, please refer to:
-- `SUPABASE_SETUP.md` for database setup
-- Supabase documentation: https://supabase.com/docs
-- OpenAI API documentation: https://platform.openai.com/docs
+### For Users
+- **[User Guide](USER_GUIDE.md)**: Complete user documentation
+- **In-App Help**: Click "Help" in the navigation menu
+- **Email Support**: support@contactium.com
+
+### For Developers
+- `SUPABASE_SETUP.md`: Database setup instructions
+- [Supabase Documentation](https://supabase.com/docs)
+- [OpenAI API Documentation](https://platform.openai.com/docs)
+- [React Router Documentation](https://reactrouter.com/)
 
 ## License
 

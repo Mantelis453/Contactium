@@ -14,6 +14,7 @@ import Companies from './components/Companies'
 import ContactLists from './components/ContactLists'
 import ContactListDetail from './components/ContactListDetail'
 import Settings from './components/Settings'
+import Help from './components/Help'
 import Layout from './components/Layout'
 import './styles/App.css'
 
@@ -56,6 +57,7 @@ function App() {
             <Route path="/contact-lists" element={<ContactLists />} />
             <Route path="/contact-lists/:listId" element={<ContactListDetail />} />
             <Route path="/settings" element={<Settings />} />
+            <Route path="/help" element={<Help />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Layout>
