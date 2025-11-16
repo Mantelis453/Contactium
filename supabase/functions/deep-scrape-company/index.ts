@@ -529,12 +529,6 @@ function detectEmailPattern(emails: string[]): string | null {
   return commonPattern
 }
 
-// Generate common email addresses
-function generateCommonEmails(domain: string): string[] {
-  const common = ['info', 'contact', 'hello', 'sales', 'support', 'admin', 'office']
-  return common.map(prefix => `${prefix}@${domain}`)
-}
-
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -666,12 +660,8 @@ Deno.serve(async (req) => {
     const socialMedia = extractSocialMedia(allHtml)
     const technologies = detectTechnologies(allHtml)
 
-    // Get domain for email generation
-    const domain = website.replace(/^https?:\/\//i, '').replace(/\/$/, '').split('/')[0]
-    const commonEmails = generateCommonEmails(domain)
-
-    // Merge all emails
-    const uniqueEmails = [...new Set([...allEmails, ...commonEmails])]
+    // Only use emails actually found on the website (no guessing/generation)
+    const uniqueEmails = [...new Set(allEmails)]
 
     // Verify emails to filter out invalid ones
     console.log('Verifying email addresses...')
