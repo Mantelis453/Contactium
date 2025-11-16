@@ -421,6 +421,35 @@ Deno.serve(async (req) => {
 
     console.log(`Starting deep scrape for: ${companyName} (${website})`)
 
+    // Validate website URL format
+    let cleanedWebsite = website.trim()
+
+    // Add https:// if not present
+    if (!cleanedWebsite.startsWith('http')) {
+      cleanedWebsite = 'https://' + cleanedWebsite
+    }
+
+    // Check if URL has a valid domain extension
+    try {
+      const urlObj = new URL(cleanedWebsite)
+      const hostname = urlObj.hostname
+
+      // Check if hostname has at least one dot (e.g., example.com)
+      if (!hostname.includes('.')) {
+        throw new Error(`Invalid website URL: "${website}". Please add a domain extension (e.g., .com, .lt, .eu)`)
+      }
+
+      // Check if it's a valid format (not just a slash or missing TLD)
+      if (hostname.endsWith('.') || hostname.split('.').length < 2) {
+        throw new Error(`Invalid website URL: "${website}". Please provide a complete domain (e.g., company.com)`)
+      }
+    } catch (error) {
+      if (error.message.includes('Invalid website URL')) {
+        throw error
+      }
+      throw new Error(`Invalid website URL format: "${website}". Please check the URL and try again.`)
+    }
+
     // Update status
     await supabase
       .from('companies')
