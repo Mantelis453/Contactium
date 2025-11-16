@@ -17,10 +17,117 @@ function extractEmails(html: string): string[] {
     if (lower.endsWith('.jpg')) return false
     if (lower.endsWith('.gif')) return false
     if (lower.endsWith('.svg')) return false
+    if (lower.endsWith('.css')) return false
+    if (lower.endsWith('.js')) return false
+
+    // Basic email format validation
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailPattern.test(email)) return false
+
+    // Must have valid TLD (at least 2 characters)
+    const parts = email.split('.')
+    if (parts.length < 2 || parts[parts.length - 1].length < 2) return false
+
     return true
   })
 
   return [...new Set(filtered)]
+}
+
+// Verify if email domain has valid MX records
+async function verifyEmailDomain(email: string): Promise<{ valid: boolean; reason?: string }> {
+  try {
+    const domain = email.split('@')[1]
+    if (!domain) return { valid: false, reason: 'Invalid email format' }
+
+    // Try to resolve DNS for the domain
+    try {
+      // Use DNS-over-HTTPS (Cloudflare)
+      const response = await fetch(`https://cloudflare-dns.com/dns-query?name=${domain}&type=MX`, {
+        headers: {
+          'Accept': 'application/dns-json'
+        }
+      })
+
+      if (!response.ok) {
+        return { valid: false, reason: 'DNS lookup failed' }
+      }
+
+      const data = await response.json()
+
+      // Check if domain has MX records
+      if (data.Answer && data.Answer.length > 0) {
+        const mxRecords = data.Answer.filter((record: any) => record.type === 15) // MX records are type 15
+        if (mxRecords.length > 0) {
+          return { valid: true }
+        }
+      }
+
+      // Try A record as fallback (some domains use A records for mail)
+      const aResponse = await fetch(`https://cloudflare-dns.com/dns-query?name=${domain}&type=A`, {
+        headers: {
+          'Accept': 'application/dns-json'
+        }
+      })
+
+      if (aResponse.ok) {
+        const aData = await aResponse.json()
+        if (aData.Answer && aData.Answer.length > 0) {
+          return { valid: true, reason: 'Domain exists (no MX, has A record)' }
+        }
+      }
+
+      return { valid: false, reason: 'No MX or A records found' }
+    } catch (dnsError) {
+      console.log(`DNS lookup error for ${domain}:`, dnsError.message)
+      return { valid: false, reason: 'Domain does not exist' }
+    }
+  } catch (error) {
+    console.log(`Email verification error:`, error.message)
+    return { valid: false, reason: 'Verification failed' }
+  }
+}
+
+// Verify multiple emails in batch
+async function verifyEmails(emails: string[]): Promise<{ verified: string[]; unverified: string[] }> {
+  const verified: string[] = []
+  const unverified: string[] = []
+  const domainCache = new Map<string, boolean>()
+
+  console.log(`Verifying ${emails.length} email addresses...`)
+
+  for (const email of emails) {
+    const domain = email.split('@')[1]
+
+    // Check cache first
+    if (domainCache.has(domain)) {
+      if (domainCache.get(domain)) {
+        verified.push(email)
+      } else {
+        unverified.push(email)
+      }
+      continue
+    }
+
+    // Verify domain
+    const result = await verifyEmailDomain(email)
+    domainCache.set(domain, result.valid)
+
+    if (result.valid) {
+      verified.push(email)
+      console.log(`✓ Valid: ${email}`)
+    } else {
+      unverified.push(email)
+      console.log(`✗ Invalid: ${email} (${result.reason})`)
+    }
+
+    // Small delay to avoid rate limiting
+    await new Promise(resolve => setTimeout(resolve, 100))
+  }
+
+  console.log(`Verification complete: ${verified.length} valid, ${unverified.length} invalid`)
+
+  return { verified, unverified }
 }
 
 // Extract phone numbers
@@ -566,10 +673,14 @@ Deno.serve(async (req) => {
     // Merge all emails
     const uniqueEmails = [...new Set([...allEmails, ...commonEmails])]
 
-    // Detect email pattern
-    const emailPattern = detectEmailPattern(allEmails)
+    // Verify emails to filter out invalid ones
+    console.log('Verifying email addresses...')
+    const { verified: verifiedEmails, unverified: unverifiedEmails } = await verifyEmails(uniqueEmails)
 
-    console.log(`Found ${uniqueEmails.length} unique emails, ${allPhones.length} phones`)
+    // Detect email pattern from verified emails
+    const emailPattern = detectEmailPattern(verifiedEmails)
+
+    console.log(`Found ${uniqueEmails.length} unique emails (${verifiedEmails.length} verified, ${unverifiedEmails.length} invalid), ${allPhones.length} phones`)
 
     // Use AI to extract structured data
     console.log('Extracting key personnel with AI...')
@@ -581,7 +692,7 @@ Deno.serve(async (req) => {
     console.log('Extracting company data with AI...')
     const companyData = await extractCompanyData(companyName, allText, geminiApiKey)
 
-    // Merge emails with existing
+    // Merge emails with existing (only use verified emails)
     const { data: existingCompany } = await supabase
       .from('companies')
       .select('email, extracted_emails')
@@ -591,7 +702,7 @@ Deno.serve(async (req) => {
     const finalEmails: string[] = []
     if (existingCompany?.email) finalEmails.push(existingCompany.email)
     if (existingCompany?.extracted_emails) finalEmails.push(...existingCompany.extracted_emails)
-    finalEmails.push(...uniqueEmails)
+    finalEmails.push(...verifiedEmails) // Only add verified emails
     const finalUniqueEmails = [...new Set(finalEmails)]
 
     // Update company with all extracted data
@@ -628,7 +739,8 @@ Deno.serve(async (req) => {
         data: {
           company: updatedCompany,
           pagesScraped: results.length,
-          emailsFound: uniqueEmails.length,
+          emailsFound: verifiedEmails.length,
+          emailsInvalid: unverifiedEmails.length,
           totalEmails: finalUniqueEmails.length,
           phonesFound: allPhones.length,
           keyPersonnel: keyPersonnel.length,

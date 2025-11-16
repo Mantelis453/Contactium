@@ -233,7 +233,8 @@ export default function Companies() {
         const resultMessage = `Deep scraping complete! 🎉
 
 📄 Pages scraped: ${details.pagesScraped}
-📧 Emails found: ${details.emailsFound} (Total: ${details.totalEmails})
+📧 Emails found: ${details.emailsFound} verified (${details.emailsInvalid || 0} invalid)
+   Total: ${details.totalEmails} unique emails
 📞 Phone numbers: ${details.phonesFound}
 👥 Key personnel: ${details.keyPersonnel}
 💼 Services: ${details.services}
