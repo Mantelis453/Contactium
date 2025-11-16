@@ -200,10 +200,44 @@ FOR EACH ROW
 EXECUTE FUNCTION update_campaign_stats();
 ```
 
+## 8. Add Web Scraping Features (New)
+
+To enable website scraping, email extraction, AI summaries, and tagging:
+
+```sql
+-- Run the migration file
+-- Copy and paste contents from: supabase/migrations/add_scraping_features.sql
+```
+
+Or manually run the commands to add:
+- Tags array column for company categorization
+- Business summary field (AI-generated)
+- Extracted emails array
+- Scraping status tracking
+- Full-text search on summaries
+- Tag management table with usage counts
+
+## 9. Deploy Supabase Edge Functions
+
+Deploy the scraping and tag management functions:
+
+```bash
+# Login to Supabase CLI
+supabase login
+
+# Link your project
+supabase link --project-ref your-project-ref
+
+# Deploy functions
+supabase functions deploy scrape-company
+supabase functions deploy company-tags
+```
+
 ## After running these commands:
 
 1. Go to your Supabase Dashboard
 2. Navigate to SQL Editor
 3. Copy and paste these SQL commands
 4. Execute them in order
-5. Your database schema will be ready!
+5. Deploy the Edge Functions
+6. Your database schema will be ready with scraping features!

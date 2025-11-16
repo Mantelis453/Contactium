@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { supabase } from '../lib/supabase'
 import SearchableSelect from './SearchableSelect'
 import API_URL from '../config/api'
 import '../styles/Companies.css'
@@ -8,6 +9,8 @@ export default function Companies() {
   const [activities, setActivities] = useState([])
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
+  const [scrapingCompanyId, setScrapingCompanyId] = useState(null)
+  const [expandedCompany, setExpandedCompany] = useState(null)
 
   // Pagination
   const [offset, setOffset] = useState(0)
@@ -23,6 +26,12 @@ export default function Companies() {
   const [maxEmployees, setMaxEmployees] = useState('')
   const [minRating, setMinRating] = useState('')
   const [maxRating, setMaxRating] = useState('')
+  const [selectedTags, setSelectedTags] = useState([])
+
+  // Tags
+  const [availableTags, setAvailableTags] = useState([])
+  const [editingTags, setEditingTags] = useState(null)
+  const [newTagInput, setNewTagInput] = useState('')
 
   // Debounce search query - wait 500ms after user stops typing
   useEffect(() => {
@@ -34,11 +43,15 @@ export default function Companies() {
   }, [searchQuery])
 
   useEffect(() => {
+    loadAvailableTags()
+  }, [])
+
+  useEffect(() => {
     setOffset(0)
     setCompanies([])
     loadCompanies(true)
     loadActivities()
-  }, [activityFilter, minEmployees, maxEmployees, minRating, maxRating, debouncedSearch])
+  }, [activityFilter, minEmployees, maxEmployees, minRating, maxRating, debouncedSearch, selectedTags])
 
   const loadCompanies = async (reset = false) => {
     try {
@@ -102,6 +115,99 @@ export default function Companies() {
     }
   }
 
+  const loadAvailableTags = async () => {
+    try {
+      const { data, error } = await supabase.functions.invoke('company-tags')
+      if (!error && data?.tags) {
+        setAvailableTags(data.tags)
+      }
+    } catch (error) {
+      console.error('Error loading tags:', error)
+    }
+  }
+
+  const scrapeCompanyWebsite = async (company) => {
+    if (!company.website) {
+      alert('No website URL available for this company')
+      return
+    }
+
+    try {
+      setScrapingCompanyId(company.id)
+
+      // Get user's OpenAI API key from settings
+      const { data: settings } = await supabase
+        .from('user_settings')
+        .select('openai_api_key')
+        .single()
+
+      const { data, error } = await supabase.functions.invoke('scrape-company', {
+        body: {
+          companyId: company.id,
+          website: company.website,
+          companyName: company.company_name || company.name,
+          openaiApiKey: settings?.openai_api_key
+        }
+      })
+
+      if (error) throw error
+
+      if (data.success) {
+        // Update company in local state
+        setCompanies(prev => prev.map(c =>
+          c.id === company.id ? { ...c, ...data.data.company } : c
+        ))
+        alert(`Scraping successful!\n- Emails found: ${data.data.emails_found}\n- Tags: ${data.data.tags.join(', ')}`)
+        setExpandedCompany(company.id) // Expand to show results
+      }
+    } catch (error) {
+      console.error('Error scraping website:', error)
+      alert('Failed to scrape website: ' + error.message)
+    } finally {
+      setScrapingCompanyId(null)
+    }
+  }
+
+  const updateCompanyTags = async (companyId, tags) => {
+    try {
+      const { error } = await supabase.functions.invoke('company-tags', {
+        method: 'PUT',
+        body: { companyId, tags }
+      })
+
+      if (error) throw error
+
+      // Update local state
+      setCompanies(prev => prev.map(c =>
+        c.id === companyId ? { ...c, tags } : c
+      ))
+      setEditingTags(null)
+    } catch (error) {
+      console.error('Error updating tags:', error)
+      alert('Failed to update tags')
+    }
+  }
+
+  const addTagToCompany = (company, tag) => {
+    const currentTags = company.tags || []
+    if (!currentTags.includes(tag)) {
+      updateCompanyTags(company.id, [...currentTags, tag])
+    }
+  }
+
+  const removeTagFromCompany = (company, tagToRemove) => {
+    const currentTags = company.tags || []
+    updateCompanyTags(company.id, currentTags.filter(t => t !== tagToRemove))
+  }
+
+  const toggleTagFilter = (tag) => {
+    setSelectedTags(prev =>
+      prev.includes(tag)
+        ? prev.filter(t => t !== tag)
+        : [...prev, tag]
+    )
+  }
+
   const clearFilters = () => {
     setSearchQuery('')
     setActivityFilter('all')
@@ -109,6 +215,7 @@ export default function Companies() {
     setMaxEmployees('')
     setMinRating('')
     setMaxRating('')
+    setSelectedTags([])
   }
 
   if (loading && companies.length === 0) {
@@ -180,6 +287,28 @@ export default function Companies() {
         </button>
       </div>
 
+      {/* Tag Filters */}
+      {availableTags.length > 0 && (
+        <div className="tags-filter-section">
+          <h4>Filter by Tags:</h4>
+          <div className="tag-filters">
+            {availableTags.slice(0, 15).map(tag => (
+              <button
+                key={tag.id}
+                onClick={() => toggleTagFilter(tag.name)}
+                className={`tag-filter-btn ${selectedTags.includes(tag.name) ? 'active' : ''}`}
+                style={{
+                  borderColor: selectedTags.includes(tag.name) ? tag.color : '#e2e8f0',
+                  backgroundColor: selectedTags.includes(tag.name) ? tag.color + '20' : 'transparent'
+                }}
+              >
+                {tag.name} ({tag.usage_count})
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="companies-stats">
         <span className="stat-item">
           Showing {companies.length} of {total} companies
@@ -195,38 +324,151 @@ export default function Companies() {
           <table className="companies-table">
             <thead>
               <tr>
+                <th></th>
                 <th>Company Name</th>
                 <th>Code</th>
                 <th>Activity</th>
-                <th>Employees</th>
-                <th>Rating</th>
-                <th>Email</th>
+                <th>Tags</th>
+                <th>Emails</th>
                 <th>Phone</th>
-                <th>Address</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
               {companies.map((company) => (
-                <tr key={company.id}>
-                  <td><strong>{company.company_name}</strong></td>
-                  <td>{company.company_code || '-'}</td>
-                  <td>
-                    {company.activity ? (
-                      <span className="activity-badge">{company.activity}</span>
-                    ) : '-'}
-                  </td>
-                  <td>{company.employees || '-'}</td>
-                  <td>{company.scorist_rating !== null && company.scorist_rating !== undefined ? company.scorist_rating : '-'}</td>
-                  <td>
-                    {company.email ? (
-                      <a href={`mailto:${company.email}`} className="email-link">
-                        {company.email}
-                      </a>
-                    ) : '-'}
-                  </td>
-                  <td>{company.phone || '-'}</td>
-                  <td className="address-cell">{company.address || '-'}</td>
-                </tr>
+                <>
+                  <tr key={company.id} className={expandedCompany === company.id ? 'expanded-row' : ''}>
+                    <td>
+                      <button
+                        onClick={() => setExpandedCompany(expandedCompany === company.id ? null : company.id)}
+                        className="expand-btn"
+                      >
+                        {expandedCompany === company.id ? '▼' : '▶'}
+                      </button>
+                    </td>
+                    <td>
+                      <strong>{company.company_name}</strong>
+                      {company.website && (
+                        <div>
+                          <a href={company.website} target="_blank" rel="noopener noreferrer" className="website-link">
+                            🔗 {company.website}
+                          </a>
+                        </div>
+                      )}
+                    </td>
+                    <td>{company.company_code || '-'}</td>
+                    <td>
+                      {company.activity ? (
+                        <span className="activity-badge">{company.activity}</span>
+                      ) : '-'}
+                    </td>
+                    <td>
+                      <div className="company-tags">
+                        {company.tags && company.tags.length > 0 ? (
+                          company.tags.map(tag => (
+                            <span key={tag} className="tag-badge">
+                              {tag}
+                              <button
+                                onClick={() => removeTagFromCompany(company, tag)}
+                                className="tag-remove-btn"
+                              >
+                                ×
+                              </button>
+                            </span>
+                          ))
+                        ) : (
+                          <span className="no-tags">No tags</span>
+                        )}
+                        <button
+                          onClick={() => setEditingTags(editingTags === company.id ? null : company.id)}
+                          className="add-tag-btn"
+                          title="Add tags"
+                        >
+                          +
+                        </button>
+                      </div>
+                      {editingTags === company.id && (
+                        <div className="tag-selector">
+                          {availableTags.map(tag => (
+                            <button
+                              key={tag.id}
+                              onClick={() => addTagToCompany(company, tag.name)}
+                              className="tag-option"
+                              disabled={company.tags?.includes(tag.name)}
+                              style={{ borderColor: tag.color }}
+                            >
+                              {tag.name}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </td>
+                    <td>
+                      {company.extracted_emails && company.extracted_emails.length > 0 ? (
+                        <div className="extracted-emails">
+                          {company.extracted_emails.slice(0, 2).map((email, idx) => (
+                            <a key={idx} href={`mailto:${email}`} className="email-link">
+                              {email}
+                            </a>
+                          ))}
+                          {company.extracted_emails.length > 2 && (
+                            <span className="more-emails">+{company.extracted_emails.length - 2} more</span>
+                          )}
+                        </div>
+                      ) : company.email ? (
+                        <a href={`mailto:${company.email}`} className="email-link">
+                          {company.email}
+                        </a>
+                      ) : '-'}
+                    </td>
+                    <td>{company.phone || '-'}</td>
+                    <td>
+                      <button
+                        onClick={() => scrapeCompanyWebsite(company)}
+                        disabled={scrapingCompanyId === company.id || !company.website}
+                        className="scrape-btn"
+                        title={company.website ? "Scrape website for emails and info" : "No website URL"}
+                      >
+                        {scrapingCompanyId === company.id ? '⏳' : '🔍'} Scrape
+                      </button>
+                      {company.last_scraped_at && (
+                        <div className="scraped-info">
+                          Last scraped: {new Date(company.last_scraped_at).toLocaleDateString()}
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                  {expandedCompany === company.id && (
+                    <tr className="expanded-content">
+                      <td colSpan="8">
+                        <div className="company-details">
+                          <div className="detail-section">
+                            <h4>Business Summary</h4>
+                            <p>{company.business_summary || 'No summary available. Click "Scrape" to generate.'}</p>
+                          </div>
+                          {company.extracted_emails && company.extracted_emails.length > 0 && (
+                            <div className="detail-section">
+                              <h4>All Extracted Emails ({company.extracted_emails.length})</h4>
+                              <div className="email-list">
+                                {company.extracted_emails.map((email, idx) => (
+                                  <a key={idx} href={`mailto:${email}`} className="email-link">
+                                    {email}
+                                  </a>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          <div className="detail-section">
+                            <h4>Additional Information</h4>
+                            <p><strong>Address:</strong> {company.address || 'Not available'}</p>
+                            <p><strong>Employees:</strong> {company.employees || 'Not available'}</p>
+                            <p><strong>Rating:</strong> {company.scorist_rating || 'Not available'}</p>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </>
               ))}
             </tbody>
           </table>
