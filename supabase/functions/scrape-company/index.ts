@@ -221,6 +221,17 @@ Deno.serve(async (req) => {
       )
     }
 
+    // Get company data including activity field
+    const { data: companyData, error: companyError } = await supabase
+      .from('companies')
+      .select('activity')
+      .eq('id', companyId)
+      .single()
+
+    if (companyError) {
+      console.error('Error fetching company:', companyError)
+    }
+
     // Update status to in_progress
     await supabase
       .from('companies')
@@ -254,6 +265,12 @@ Deno.serve(async (req) => {
     let businessSummary = 'No summary available'
     let tags: string[] = []
 
+    // Add company activity as a tag if it exists (Lithuanian business activity)
+    if (companyData?.activity) {
+      tags.push(companyData.activity)
+      console.log(`Added activity tag: ${companyData.activity}`)
+    }
+
     // Generate AI summary and tags if API key provided
     if (geminiApiKey && scrapeResult.textContent) {
       console.log('Generating AI summary with Gemini 2.0 Flash...')
@@ -264,12 +281,15 @@ Deno.serve(async (req) => {
       )
 
       console.log('Generating tags with Gemini 2.0 Flash...')
-      tags = await generateTags(
+      const aiTags = await generateTags(
         companyName || 'this company',
         scrapeResult.textContent,
         businessSummary,
         geminiApiKey
       )
+
+      // Merge AI tags with activity tag, removing duplicates
+      tags = [...new Set([...tags, ...aiTags])]
     }
 
     // Update company with scraped data

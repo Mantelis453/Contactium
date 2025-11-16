@@ -51,11 +51,16 @@ enterprise-grade security.
 ### 3. Auto-Generated Tags
 
 **What it does:**
+- Automatically includes the company's Lithuanian business activity as a tag (if set in database)
 - AI analyzes the company's business summary and website
-- Automatically suggests 3-7 relevant tags
+- Automatically suggests 3-7 additional relevant tags
 - Tags help categorize companies for better targeting
 
-**Common tag categories:**
+**Tag sources:**
+1. **Activity Tag** (automatic): Company's Lithuanian business activity field (e.g., "IT paslaugos", "Automobilių prekyba")
+2. **AI Tags** (generated): Business model, industry, technology, size, status
+
+**Common AI tag categories:**
 - **Business Model**: B2B, B2C, SaaS, E-commerce
 - **Industry**: FinTech, HealthTech, EdTech
 - **Technology**: AI/ML, Blockchain, Cloud
@@ -229,6 +234,12 @@ const { data, error } = await supabase.functions.invoke('scrape-company', {
     geminiApiKey: 'AIza...'
   }
 })
+
+// Response will include:
+// - extracted_emails: ["info@techstartup.com", "sales@techstartup.com"]
+// - business_summary: "AI-generated summary..."
+// - tags: ["IT paslaugos", "B2B", "SaaS", "AI/ML"]
+//   (First tag is from company's activity field, rest are AI-generated)
 ```
 
 ### Example 2: Search Companies with Tags
