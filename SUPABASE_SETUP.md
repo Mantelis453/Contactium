@@ -217,6 +217,22 @@ Or manually run the commands to add:
 - Full-text search on summaries
 - Tag management table with usage counts
 
+## 8.1. Add Lithuanian Business Activity Tags (Optional)
+
+To add 288 Lithuanian business activity categories as pre-populated tags:
+
+```sql
+-- Run the migration file
+-- Copy and paste contents from: supabase/migrations/add_lithuanian_activity_tags.sql
+```
+
+This will populate the `company_tags` table with common Lithuanian business activities such as:
+- Akmens gaminiai (Stone products)
+- Automobilių prekyba (Car sales)
+- Baldai (Furniture)
+- IT paslaugos (IT services)
+- And 284 more...
+
 ## 9. Deploy Supabase Edge Functions
 
 Deploy the scraping and tag management functions:
