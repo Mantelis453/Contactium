@@ -460,11 +460,15 @@ app.post('/api/stripe/test-upgrade', async (req, res) => {
 // Get all companies with filtering
 app.get('/api/companies', async (req, res) => {
   try {
-    const { activity, minEmployees, maxEmployees, minRating, maxRating, search } = req.query
+    const { activity, minEmployees, maxEmployees, minRating, maxRating, search, website, offset = '0', limit = '100' } = req.query
+
+    // Parse pagination params
+    const offsetNum = parseInt(offset)
+    const limitNum = parseInt(limit)
 
     let query = supabase
       .from('companies')
-      .select('*')
+      .select('*', { count: 'exact' })
       .not('email', 'is', null)
       .neq('email', '')
       .not('email', 'ilike', '%neviešinama%')
@@ -495,11 +499,47 @@ app.get('/api/companies', async (req, res) => {
       query = query.or(`company_name.ilike.%${search}%,company_code.ilike.%${search}%,email.ilike.%${search}%`)
     }
 
+    // Website filter
+    if (website === 'with') {
+      // Has a valid website (not null, not empty, not "neturime" or similar placeholders)
+      const noWebsiteIndicators = ['neturime', 'nėra', 'n/a', 'na', 'none', 'no website', 'no', '-']
+      query = query
+        .not('website', 'is', null)
+        .neq('website', '')
+
+      // Exclude placeholder values
+      for (const indicator of noWebsiteIndicators) {
+        query = query.not('website', 'ilike', indicator)
+      }
+    } else if (website === 'without') {
+      // No valid website (null, empty, or placeholder)
+      const noWebsiteIndicators = ['neturime', 'nėra', 'n/a', 'na', 'none', 'no website', 'no', '-']
+
+      // Build OR condition for no website
+      const orConditions = [
+        'website.is.null',
+        'website.eq.',
+        ...noWebsiteIndicators.map(indicator => `website.ilike.${indicator}`)
+      ]
+
+      query = query.or(orConditions.join(','))
+    }
+
+    // Apply pagination
+    query = query.range(offsetNum, offsetNum + limitNum - 1)
+
     const { data, error, count } = await query
 
     if (error) throw error
 
-    res.json({ companies: data || [], total: count })
+    // Calculate hasMore
+    const hasMore = count > (offsetNum + limitNum)
+
+    res.json({
+      companies: data || [],
+      total: count || 0,
+      hasMore
+    })
   } catch (error) {
     console.error('Error fetching companies:', error)
     res.status(500).json({ error: error.message })

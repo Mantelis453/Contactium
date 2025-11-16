@@ -30,6 +30,7 @@ export default function Companies() {
   const [minRating, setMinRating] = useState('')
   const [maxRating, setMaxRating] = useState('')
   const [selectedTags, setSelectedTags] = useState([])
+  const [websiteFilter, setWebsiteFilter] = useState('all') // all, with, without
 
   // Tags
   const [availableTags, setAvailableTags] = useState([])
@@ -54,7 +55,7 @@ export default function Companies() {
     setCompanies([])
     loadCompanies(true)
     loadActivities()
-  }, [activityFilter, minEmployees, maxEmployees, minRating, maxRating, debouncedSearch, selectedTags])
+  }, [activityFilter, minEmployees, maxEmployees, minRating, maxRating, debouncedSearch, selectedTags, websiteFilter])
 
   const loadCompanies = async (reset = false) => {
     try {
@@ -72,6 +73,7 @@ export default function Companies() {
         ...(minRating && { minRating }),
         ...(maxRating && { maxRating }),
         ...(debouncedSearch && { search: debouncedSearch }),
+        ...(websiteFilter !== 'all' && { website: websiteFilter }),
         offset: currentOffset.toString(),
         limit: limit.toString()
       })
@@ -364,6 +366,7 @@ ${details.employeeCount ? `👔 Employees: ~${details.employeeCount}` : ''}`
     setMinRating('')
     setMaxRating('')
     setSelectedTags([])
+    setWebsiteFilter('all')
   }
 
   if (loading && companies.length === 0) {
@@ -409,6 +412,16 @@ ${details.employeeCount ? `👔 Employees: ~${details.employeeCount}` : ''}`
           onChange={(value) => setActivityFilter(value || 'all')}
           placeholder="Search activities..."
         />
+
+        <select
+          value={websiteFilter}
+          onChange={(e) => setWebsiteFilter(e.target.value)}
+          className="filter-select"
+        >
+          <option value="all">All Companies</option>
+          <option value="with">With Website</option>
+          <option value="without">Without Website</option>
+        </select>
 
         <input
           type="number"
