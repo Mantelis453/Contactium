@@ -13,6 +13,7 @@ export default function Companies() {
   const [expandedCompany, setExpandedCompany] = useState(null)
   const [batchProcessing, setBatchProcessing] = useState(false)
   const [batchProgress, setBatchProgress] = useState(null)
+  const [deepScrapingCompanyId, setDeepScrapingCompanyId] = useState(null)
 
   // Pagination
   const [offset, setOffset] = useState(0)
@@ -175,6 +176,73 @@ export default function Companies() {
       alert('Failed to process company: ' + error.message)
     } finally {
       setScrapingCompanyId(null)
+    }
+  }
+
+  const deepScrapeCompany = async (company) => {
+    if (!company.website || company.website.trim() === '') {
+      alert('Website URL is required for deep scraping')
+      return
+    }
+
+    if (!confirm(`Deep scrape will:\n- Scrape multiple pages (About, Team, Contact, etc.)\n- Extract all emails, phone numbers, and addresses\n- Find key personnel and social media links\n- Detect technologies and services\n\nThis may take 1-2 minutes. Continue?`)) {
+      return
+    }
+
+    try {
+      setDeepScrapingCompanyId(company.id)
+
+      // Get user's Gemini API key from settings
+      const { data: settings } = await supabase
+        .from('user_settings')
+        .select('gemini_api_key')
+        .single()
+
+      if (!settings?.gemini_api_key) {
+        alert('Please add your Gemini API key in Settings first')
+        setDeepScrapingCompanyId(null)
+        return
+      }
+
+      const { data, error } = await supabase.functions.invoke('deep-scrape-company', {
+        body: {
+          companyId: company.id,
+          website: company.website,
+          companyName: company.company_name || company.name,
+          geminiApiKey: settings.gemini_api_key
+        }
+      })
+
+      if (error) throw error
+
+      if (data.success) {
+        // Update company in local state
+        setCompanies(prev => prev.map(c =>
+          c.id === company.id ? { ...c, ...data.data.company } : c
+        ))
+
+        const details = data.data
+        const resultMessage = `Deep scraping complete! 🎉
+
+📄 Pages scraped: ${details.pagesScraped}
+📧 Emails found: ${details.emailsFound} (Total: ${details.totalEmails})
+📞 Phone numbers: ${details.phonesFound}
+👥 Key personnel: ${details.keyPersonnel}
+💼 Services: ${details.services}
+🔧 Technologies: ${details.technologies}
+📱 Social media: ${details.socialMedia}
+${details.emailPattern ? `📧 Email pattern: ${details.emailPattern}` : ''}
+${details.foundedYear ? `📅 Founded: ${details.foundedYear}` : ''}
+${details.employeeCount ? `👔 Employees: ~${details.employeeCount}` : ''}`
+
+        alert(resultMessage)
+        setExpandedCompany(company.id) // Expand to show results
+      }
+    } catch (error) {
+      console.error('Error deep scraping company:', error)
+      alert('Failed to deep scrape company: ' + error.message)
+    } finally {
+      setDeepScrapingCompanyId(null)
     }
   }
 
@@ -497,17 +565,34 @@ export default function Companies() {
                     </td>
                     <td>{company.phone || '-'}</td>
                     <td>
-                      <button
-                        onClick={() => scrapeCompanyWebsite(company)}
-                        disabled={scrapingCompanyId === company.id}
-                        className="scrape-btn"
-                        title={company.website ? "Scrape website for emails and generate AI tags" : "Generate AI tags from company info"}
-                      >
-                        {scrapingCompanyId === company.id ? '⏳' : (company.website ? '🔍' : '🏷️')} {company.website ? 'Scrape' : 'Tag'}
-                      </button>
+                      <div className="scrape-buttons">
+                        <button
+                          onClick={() => scrapeCompanyWebsite(company)}
+                          disabled={scrapingCompanyId === company.id || deepScrapingCompanyId === company.id}
+                          className="scrape-btn"
+                          title={company.website ? "Quick scrape: homepage only" : "Generate AI tags from company info"}
+                        >
+                          {scrapingCompanyId === company.id ? '⏳' : (company.website ? '🔍' : '🏷️')} {company.website ? 'Quick' : 'Tag'}
+                        </button>
+                        {company.website && (
+                          <button
+                            onClick={() => deepScrapeCompany(company)}
+                            disabled={deepScrapingCompanyId === company.id || scrapingCompanyId === company.id}
+                            className="deep-scrape-btn"
+                            title="Deep scrape: multiple pages, emails, personnel, social media"
+                          >
+                            {deepScrapingCompanyId === company.id ? '⏳' : '🔬'} Deep
+                          </button>
+                        )}
+                      </div>
                       {company.last_scraped_at && (
                         <div className="scraped-info">
-                          Last scraped: {new Date(company.last_scraped_at).toLocaleDateString()}
+                          Quick: {new Date(company.last_scraped_at).toLocaleDateString()}
+                        </div>
+                      )}
+                      {company.deep_scraped_at && (
+                        <div className="scraped-info">
+                          Deep: {new Date(company.deep_scraped_at).toLocaleDateString()} ({company.deep_scrape_pages_found} pages)
                         </div>
                       )}
                     </td>
@@ -520,9 +605,13 @@ export default function Companies() {
                             <h4>Business Summary</h4>
                             <p>{company.business_summary || 'No summary available. Click "Scrape" to generate.'}</p>
                           </div>
+
                           {company.extracted_emails && company.extracted_emails.length > 0 && (
                             <div className="detail-section">
                               <h4>All Extracted Emails ({company.extracted_emails.length})</h4>
+                              {company.email_pattern && (
+                                <p className="email-pattern">Pattern detected: <strong>{company.email_pattern}</strong></p>
+                              )}
                               <div className="email-list">
                                 {company.extracted_emails.map((email, idx) => (
                                   <a key={idx} href={`mailto:${email}`} className="email-link">
@@ -532,10 +621,108 @@ export default function Companies() {
                               </div>
                             </div>
                           )}
+
+                          {company.key_personnel && Array.isArray(company.key_personnel) && company.key_personnel.length > 0 && (
+                            <div className="detail-section">
+                              <h4>Key Personnel ({company.key_personnel.length})</h4>
+                              <div className="personnel-list">
+                                {company.key_personnel.map((person, idx) => (
+                                  <div key={idx} className="personnel-item">
+                                    <strong>{person.name}</strong> - {person.title}
+                                    {person.email && (
+                                      <a href={`mailto:${person.email}`} className="email-link"> {person.email}</a>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {company.phone_numbers && company.phone_numbers.length > 0 && (
+                            <div className="detail-section">
+                              <h4>Phone Numbers ({company.phone_numbers.length})</h4>
+                              <div className="phone-list">
+                                {company.phone_numbers.map((phone, idx) => (
+                                  <a key={idx} href={`tel:${phone}`} className="phone-link">
+                                    {phone}
+                                  </a>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {company.social_media && Object.keys(company.social_media).length > 0 && (
+                            <div className="detail-section">
+                              <h4>Social Media</h4>
+                              <div className="social-links">
+                                {company.social_media.linkedin && (
+                                  <a href={company.social_media.linkedin} target="_blank" rel="noopener noreferrer" className="social-link linkedin">
+                                    LinkedIn
+                                  </a>
+                                )}
+                                {company.social_media.twitter && (
+                                  <a href={company.social_media.twitter} target="_blank" rel="noopener noreferrer" className="social-link twitter">
+                                    Twitter
+                                  </a>
+                                )}
+                                {company.social_media.facebook && (
+                                  <a href={company.social_media.facebook} target="_blank" rel="noopener noreferrer" className="social-link facebook">
+                                    Facebook
+                                  </a>
+                                )}
+                                {company.social_media.instagram && (
+                                  <a href={company.social_media.instagram} target="_blank" rel="noopener noreferrer" className="social-link instagram">
+                                    Instagram
+                                  </a>
+                                )}
+                                {company.social_media.youtube && (
+                                  <a href={company.social_media.youtube} target="_blank" rel="noopener noreferrer" className="social-link youtube">
+                                    YouTube
+                                  </a>
+                                )}
+                              </div>
+                            </div>
+                          )}
+
+                          {company.services && company.services.length > 0 && (
+                            <div className="detail-section">
+                              <h4>Services/Products</h4>
+                              <div className="tag-list">
+                                {company.services.map((service, idx) => (
+                                  <span key={idx} className="service-tag">{service}</span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {company.technologies && company.technologies.length > 0 && (
+                            <div className="detail-section">
+                              <h4>Technologies Detected</h4>
+                              <div className="tag-list">
+                                {company.technologies.map((tech, idx) => (
+                                  <span key={idx} className="tech-tag">{tech}</span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {company.certifications && company.certifications.length > 0 && (
+                            <div className="detail-section">
+                              <h4>Certifications & Awards</h4>
+                              <div className="tag-list">
+                                {company.certifications.map((cert, idx) => (
+                                  <span key={idx} className="cert-tag">{cert}</span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
                           <div className="detail-section">
                             <h4>Additional Information</h4>
+                            {company.founded_year && <p><strong>Founded:</strong> {company.founded_year}</p>}
+                            {company.employee_count && <p><strong>Employees:</strong> ~{company.employee_count}</p>}
                             <p><strong>Address:</strong> {company.address || 'Not available'}</p>
-                            <p><strong>Employees:</strong> {company.employees || 'Not available'}</p>
+                            <p><strong>Original Employees:</strong> {company.employees || 'Not available'}</p>
                             <p><strong>Rating:</strong> {company.scorist_rating || 'Not available'}</p>
                           </div>
                         </div>
