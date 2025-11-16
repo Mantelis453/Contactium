@@ -507,19 +507,19 @@ app.get('/api/companies', async (req, res) => {
         .not('website', 'is', null)
         .neq('website', '')
 
-      // Exclude placeholder values
+      // Exclude placeholder values (use % wildcards for ilike pattern matching)
       for (const indicator of noWebsiteIndicators) {
-        query = query.not('website', 'ilike', indicator)
+        query = query.not('website', 'ilike', `%${indicator}%`)
       }
     } else if (website === 'without') {
       // No valid website (null, empty, or placeholder)
       const noWebsiteIndicators = ['neturime', 'nėra', 'n/a', 'na', 'none', 'no website', 'no', '-']
 
-      // Build OR condition for no website
+      // Build OR condition for no website (use % wildcards for ilike pattern matching)
       const orConditions = [
         'website.is.null',
         'website.eq.',
-        ...noWebsiteIndicators.map(indicator => `website.ilike.${indicator}`)
+        ...noWebsiteIndicators.map(indicator => `website.ilike.%${indicator}%`)
       ]
 
       query = query.or(orConditions.join(','))
