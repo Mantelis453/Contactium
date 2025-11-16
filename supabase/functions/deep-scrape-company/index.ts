@@ -421,6 +421,30 @@ Deno.serve(async (req) => {
 
     console.log(`Starting deep scrape for: ${companyName} (${website})`)
 
+    // Check for "no website" indicators (Lithuanian and common placeholders)
+    const noWebsiteIndicators = [
+      'neturime',
+      'nėra',
+      'n/a',
+      'na',
+      'none',
+      'no website',
+      'no',
+      '-',
+      ''
+    ]
+
+    const websiteLower = website.toLowerCase().trim()
+    if (noWebsiteIndicators.includes(websiteLower)) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: 'Company does not have a website (marked as "neturime" or similar). Deep scraping requires a valid website URL.'
+        }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
     // Validate website URL format
     let cleanedWebsite = website.trim()
 
@@ -436,7 +460,7 @@ Deno.serve(async (req) => {
 
       // Check if hostname has at least one dot (e.g., example.com)
       if (!hostname.includes('.')) {
-        throw new Error(`Invalid website URL: "${website}". Please add a domain extension (e.g., .com, .lt, .eu)`)
+        throw new Error(`Invalid website URL: "${website}". Please provide a valid domain (e.g., company.com, company.lt)`)
       }
 
       // Check if it's a valid format (not just a slash or missing TLD)

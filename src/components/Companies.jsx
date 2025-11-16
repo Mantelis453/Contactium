@@ -278,6 +278,14 @@ ${details.employeeCount ? `👔 Employees: ~${details.employeeCount}` : ''}`
     updateCompanyTags(company.id, currentTags.filter(t => t !== tagToRemove))
   }
 
+  // Check if website value indicates "no website"
+  const hasValidWebsite = (website) => {
+    if (!website) return false
+    const noWebsiteIndicators = ['neturime', 'nėra', 'n/a', 'na', 'none', 'no website', 'no', '-']
+    const websiteLower = website.toLowerCase().trim()
+    return !noWebsiteIndicators.includes(websiteLower)
+  }
+
   const batchTagAllCompanies = async () => {
     if (!confirm('This will process all companies without tags and add AI-generated tags. This may take several minutes. Continue?')) {
       return
@@ -570,11 +578,11 @@ ${details.employeeCount ? `👔 Employees: ~${details.employeeCount}` : ''}`
                           onClick={() => scrapeCompanyWebsite(company)}
                           disabled={scrapingCompanyId === company.id || deepScrapingCompanyId === company.id}
                           className="scrape-btn"
-                          title={company.website ? "Quick scrape: homepage only" : "Generate AI tags from company info"}
+                          title={hasValidWebsite(company.website) ? "Quick scrape: homepage only" : "Generate AI tags from company info"}
                         >
-                          {scrapingCompanyId === company.id ? '⏳' : (company.website ? '🔍' : '🏷️')} {company.website ? 'Quick' : 'Tag'}
+                          {scrapingCompanyId === company.id ? '⏳' : (hasValidWebsite(company.website) ? '🔍' : '🏷️')} {hasValidWebsite(company.website) ? 'Quick' : 'Tag'}
                         </button>
-                        {company.website && (
+                        {hasValidWebsite(company.website) && (
                           <button
                             onClick={() => deepScrapeCompany(company)}
                             disabled={deepScrapingCompanyId === company.id || scrapingCompanyId === company.id}
