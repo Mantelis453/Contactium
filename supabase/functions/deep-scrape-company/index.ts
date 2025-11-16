@@ -120,12 +120,24 @@ async function scrapePage(url: string): Promise<{ html: string; text: string; er
       url = 'https://' + url
     }
 
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 15000) // 15 second timeout
+
     const response = await fetch(url, {
       headers: {
-        'User-Agent': 'Contactium Bot/2.0 (Deep Business Intelligence Crawler)'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'DNT': '1',
+        'Connection': 'keep-alive',
+        'Upgrade-Insecure-Requests': '1'
       },
-      redirect: 'follow'
+      redirect: 'follow',
+      signal: controller.signal
     })
+
+    clearTimeout(timeoutId)
 
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`)
@@ -136,6 +148,7 @@ async function scrapePage(url: string): Promise<{ html: string; text: string; er
 
     return { html, text }
   } catch (error) {
+    console.log(`Failed to scrape ${url}: ${error.message}`)
     return { html: '', text: '', error: error.message }
   }
 }
@@ -418,25 +431,30 @@ Deno.serve(async (req) => {
     const urls = generatePageUrls(website)
     console.log(`Attempting to scrape ${urls.length} pages...`)
 
-    // Scrape all pages
-    const results = []
-    for (const url of urls) {
+    // Try homepage first - this is critical
+    const homepageResult = await scrapePage(urls[0])
+    if (homepageResult.error || !homepageResult.html) {
+      throw new Error(`Could not scrape homepage: ${homepageResult.error || 'No content returned'}`)
+    }
+
+    console.log(`✓ Successfully scraped homepage`)
+
+    // Scrape remaining pages (optional - we'll continue even if these fail)
+    const results = [homepageResult]
+    for (let i = 1; i < urls.length; i++) {
+      const url = urls[i]
       const result = await scrapePage(url)
       if (!result.error && result.html) {
         results.push(result)
         console.log(`✓ Scraped: ${url}`)
       } else {
-        console.log(`✗ Failed: ${url}`)
+        console.log(`✗ Failed: ${url} - ${result.error}`)
       }
       // Small delay to be respectful
       await new Promise(resolve => setTimeout(resolve, 500))
     }
 
-    if (results.length === 0) {
-      throw new Error('Could not scrape any pages from the website')
-    }
-
-    console.log(`Successfully scraped ${results.length} pages`)
+    console.log(`Successfully scraped ${results.length} of ${urls.length} pages`)
 
     // Combine all HTML and text
     const allHtml = results.map(r => r.html).join('\n')
