@@ -221,10 +221,10 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Get company data including activity field
+    // Get company data including activity, email, and existing extracted_emails
     const { data: companyData, error: companyError } = await supabase
       .from('companies')
-      .select('activity')
+      .select('activity, email, extracted_emails')
       .eq('id', companyId)
       .single()
 
@@ -292,11 +292,34 @@ Deno.serve(async (req) => {
       tags = [...new Set([...tags, ...aiTags])]
     }
 
-    // Update company with scraped data
+    // Merge emails: existing email + existing extracted_emails + new scraped emails
+    const allEmails: string[] = []
+
+    // Add existing email if it exists
+    if (companyData?.email) {
+      allEmails.push(companyData.email)
+    }
+
+    // Add existing extracted_emails if they exist
+    if (companyData?.extracted_emails && Array.isArray(companyData.extracted_emails)) {
+      allEmails.push(...companyData.extracted_emails)
+    }
+
+    // Add newly scraped emails
+    if (scrapeResult.emails && scrapeResult.emails.length > 0) {
+      allEmails.push(...scrapeResult.emails)
+    }
+
+    // Remove duplicates and keep unique emails only
+    const uniqueEmails = [...new Set(allEmails)]
+
+    console.log(`Total unique emails: ${uniqueEmails.length} (existing: ${companyData?.extracted_emails?.length || 0}, new: ${scrapeResult.emails.length})`)
+
+    // Update company with scraped data (preserving original email field)
     const { data: updatedCompany, error: updateError } = await supabase
       .from('companies')
       .update({
-        extracted_emails: scrapeResult.emails,
+        extracted_emails: uniqueEmails,
         business_summary: businessSummary,
         tags: tags,
         scraping_status: 'completed',
@@ -314,10 +337,11 @@ Deno.serve(async (req) => {
         success: true,
         data: {
           company: updatedCompany,
-          extracted_emails: scrapeResult.emails,
+          extracted_emails: uniqueEmails,
           business_summary: businessSummary,
           tags: tags,
-          emails_found: scrapeResult.emails.length
+          emails_found: scrapeResult.emails.length,
+          total_emails: uniqueEmails.length
         }
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
