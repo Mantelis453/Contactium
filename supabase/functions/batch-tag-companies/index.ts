@@ -158,7 +158,7 @@ Return ONLY a JSON array of tag strings, nothing else. Example: ["B2B", "SaaS", 
   }
 }
 
-// Main scraping function
+// Scraping function
 async function scrapeWebsite(url: string): Promise<{
   html: string
   emails: string[]
@@ -197,49 +197,33 @@ async function scrapeWebsite(url: string): Promise<{
   }
 }
 
-Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
-  }
-
-  const supabase = createSupabaseClient()
-
+// Process a single company
+async function processCompany(company: any, geminiApiKey: string, supabase: any) {
   try {
-    const { companyId, website, companyName, geminiApiKey } = await req.json()
-
-    if (!companyId) {
-      return new Response(
-        JSON.stringify({ error: 'Company ID is required' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
-
-    // Get company data including activity, email, and existing extracted_emails
-    const { data: companyData, error: companyError } = await supabase
-      .from('companies')
-      .select('activity, email, extracted_emails, industry, location')
-      .eq('id', companyId)
-      .single()
-
-    if (companyError) {
-      console.error('Error fetching company:', companyError)
-    }
+    console.log(`Processing company: ${company.name || company.company_name} (ID: ${company.id})`)
 
     // Update status to in_progress
     await supabase
       .from('companies')
       .update({ scraping_status: 'in_progress' })
-      .eq('id', companyId)
+      .eq('id', company.id)
 
     // Initialize default values
     let scrapeResult = { html: '', emails: [], textContent: '', error: undefined }
     let businessSummary = 'No summary available'
     let tags: string[] = []
 
+    // Add company activity as a tag if it exists (Lithuanian business activity)
+    if (company.activity) {
+      tags.push(company.activity)
+      console.log(`Added activity tag: ${company.activity}`)
+    }
+
     // Scrape the website if URL is provided
-    if (website) {
-      console.log(`Scraping website: ${website}`)
-      scrapeResult = await scrapeWebsite(website)
+    const hasWebsite = company.website && company.website.trim() !== ''
+    if (hasWebsite) {
+      console.log(`Scraping website: ${company.website}`)
+      scrapeResult = await scrapeWebsite(company.website)
 
       if (scrapeResult.error) {
         console.warn(`Website scraping failed: ${scrapeResult.error}. Proceeding with tagging only.`)
@@ -248,85 +232,65 @@ Deno.serve(async (req) => {
       console.log('No website provided. Proceeding with tagging only.')
     }
 
-    // Add company activity as a tag if it exists (Lithuanian business activity)
-    if (companyData?.activity) {
-      tags.push(companyData.activity)
-      console.log(`Added activity tag: ${companyData.activity}`)
-    }
-
-    console.log(`Company data - Activity: ${companyData?.activity}, Industry: ${companyData?.industry}, Has website content: ${!!scrapeResult.textContent}`)
-
     // Generate AI summary and tags if API key provided
     if (geminiApiKey) {
       if (scrapeResult.textContent && scrapeResult.textContent.length > 0) {
         // Generate from website content
         console.log('Generating AI summary with Gemini 2.0 Flash...')
         businessSummary = await generateBusinessSummary(
-          companyName || 'this company',
+          company.company_name || company.name || 'this company',
           scrapeResult.textContent,
           geminiApiKey
         )
 
         console.log('Generating tags with Gemini 2.0 Flash...')
         const aiTags = await generateTags(
-          companyName || 'this company',
+          company.company_name || company.name || 'this company',
           scrapeResult.textContent,
           businessSummary,
           geminiApiKey
         )
 
         console.log(`AI generated ${aiTags.length} tags from website: ${aiTags.join(', ')}`)
-        // Merge AI tags with activity tag, removing duplicates
         tags = [...new Set([...tags, ...aiTags])]
       } else {
         // Generate tags from company metadata when no website available
         console.log('No website content. Generating tags from company metadata with Gemini 2.0 Flash...')
-        const companyInfo = `Company: ${companyName || 'Unknown'}\nActivity: ${companyData?.activity || 'N/A'}\nIndustry: ${companyData?.industry || 'N/A'}\nLocation: ${companyData?.location || 'N/A'}`
-
-        console.log(`Company info for AI: ${companyInfo}`)
+        const companyInfo = `Company: ${company.company_name || company.name || 'Unknown'}\nActivity: ${company.activity || 'N/A'}\nIndustry: ${company.industry || 'N/A'}\nLocation: ${company.location || 'N/A'}`
 
         const aiTags = await generateTags(
-          companyName || 'this company',
+          company.company_name || company.name || 'this company',
           companyInfo,
-          `Company in ${companyData?.industry || companyData?.activity || 'general business'}`,
+          `Company in ${company.industry || company.activity || 'general business'}`,
           geminiApiKey
         )
 
         console.log(`AI generated ${aiTags.length} tags from metadata: ${aiTags.join(', ')}`)
-        // Merge AI tags with activity tag, removing duplicates
         tags = [...new Set([...tags, ...aiTags])]
       }
-    } else {
-      console.log('No Gemini API key provided. Skipping AI tag generation.')
     }
-
-    console.log(`Final tags to save: ${tags.join(', ')}`)
 
     // Merge emails: existing email + existing extracted_emails + new scraped emails
     const allEmails: string[] = []
 
-    // Add existing email if it exists
-    if (companyData?.email) {
-      allEmails.push(companyData.email)
+    if (company.email) {
+      allEmails.push(company.email)
     }
 
-    // Add existing extracted_emails if they exist
-    if (companyData?.extracted_emails && Array.isArray(companyData.extracted_emails)) {
-      allEmails.push(...companyData.extracted_emails)
+    if (company.extracted_emails && Array.isArray(company.extracted_emails)) {
+      allEmails.push(...company.extracted_emails)
     }
 
-    // Add newly scraped emails
     if (scrapeResult.emails && scrapeResult.emails.length > 0) {
       allEmails.push(...scrapeResult.emails)
     }
 
-    // Remove duplicates and keep unique emails only
     const uniqueEmails = [...new Set(allEmails)]
 
-    console.log(`Total unique emails: ${uniqueEmails.length} (existing: ${companyData?.extracted_emails?.length || 0}, new: ${scrapeResult.emails.length})`)
+    console.log(`Total unique emails: ${uniqueEmails.length}, Tags: ${tags.join(', ')}`)
 
-    // Update company with scraped data (preserving original email field)
-    const { data: updatedCompany, error: updateError } = await supabase
+    // Update company with scraped data
+    await supabase
       .from('companies')
       .update({
         extracted_emails: uniqueEmails,
@@ -336,28 +300,111 @@ Deno.serve(async (req) => {
         scraping_error: null,
         last_scraped_at: new Date().toISOString()
       })
-      .eq('id', companyId)
-      .select()
-      .single()
+      .eq('id', company.id)
 
-    if (updateError) throw updateError
+    return {
+      success: true,
+      companyId: company.id,
+      companyName: company.name || company.company_name,
+      tags: tags,
+      emailsFound: scrapeResult.emails.length,
+      totalEmails: uniqueEmails.length
+    }
+  } catch (error) {
+    console.error(`Error processing company ${company.id}:`, error)
+
+    // Update with error status
+    await supabase
+      .from('companies')
+      .update({
+        scraping_status: 'failed',
+        scraping_error: error.message,
+        last_scraped_at: new Date().toISOString()
+      })
+      .eq('id', company.id)
+
+    return {
+      success: false,
+      companyId: company.id,
+      companyName: company.name || company.company_name,
+      error: error.message
+    }
+  }
+}
+
+Deno.serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders })
+  }
+
+  const supabase = createSupabaseClient()
+
+  try {
+    const { geminiApiKey, limit = 100, tagOnly = false } = await req.json()
+
+    if (!geminiApiKey) {
+      return new Response(
+        JSON.stringify({ error: 'Gemini API key is required' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // Fetch companies that need processing
+    let query = supabase
+      .from('companies')
+      .select('id, name, company_name, email, website, phone, activity, industry, location, extracted_emails, tags, scraping_status')
+      .or('tags.is.null,scraping_status.is.null')
+      .limit(limit)
+
+    // If tagOnly, only get companies without websites
+    if (tagOnly) {
+      query = query.or('website.is.null,website.eq.')
+    }
+
+    const { data: companies, error: fetchError } = await query
+
+    if (fetchError) throw fetchError
+
+    if (!companies || companies.length === 0) {
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: 'No companies to process',
+          processed: 0,
+          results: []
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    console.log(`Processing ${companies.length} companies...`)
+
+    // Process companies one by one (to avoid rate limits)
+    const results = []
+    for (const company of companies) {
+      const result = await processCompany(company, geminiApiKey, supabase)
+      results.push(result)
+
+      // Small delay to avoid hitting API rate limits
+      await new Promise(resolve => setTimeout(resolve, 1000))
+    }
+
+    const successCount = results.filter(r => r.success).length
+    const failCount = results.filter(r => !r.success).length
 
     return new Response(
       JSON.stringify({
         success: true,
-        data: {
-          company: updatedCompany,
-          extracted_emails: uniqueEmails,
-          business_summary: businessSummary,
-          tags: tags,
-          emails_found: scrapeResult.emails.length,
-          total_emails: uniqueEmails.length
-        }
+        message: `Processed ${companies.length} companies: ${successCount} successful, ${failCount} failed`,
+        processed: companies.length,
+        successCount,
+        failCount,
+        results
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   } catch (error) {
-    console.error('Error in scrape-company function:', error)
+    console.error('Error in batch-tag-companies function:', error)
 
     return new Response(
       JSON.stringify({

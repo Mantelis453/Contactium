@@ -11,6 +11,8 @@ export default function Companies() {
   const [loadingMore, setLoadingMore] = useState(false)
   const [scrapingCompanyId, setScrapingCompanyId] = useState(null)
   const [expandedCompany, setExpandedCompany] = useState(null)
+  const [batchProcessing, setBatchProcessing] = useState(false)
+  const [batchProgress, setBatchProgress] = useState(null)
 
   // Pagination
   const [offset, setOffset] = useState(0)
@@ -208,6 +210,56 @@ export default function Companies() {
     updateCompanyTags(company.id, currentTags.filter(t => t !== tagToRemove))
   }
 
+  const batchTagAllCompanies = async () => {
+    if (!confirm('This will process all companies without tags and add AI-generated tags. This may take several minutes. Continue?')) {
+      return
+    }
+
+    try {
+      setBatchProcessing(true)
+      setBatchProgress('Starting batch processing...')
+
+      // Get user's Gemini API key from settings
+      const { data: settings } = await supabase
+        .from('user_settings')
+        .select('gemini_api_key')
+        .single()
+
+      if (!settings?.gemini_api_key) {
+        alert('Please add your Gemini API key in Settings first')
+        setBatchProcessing(false)
+        return
+      }
+
+      setBatchProgress('Processing companies... This may take a few minutes.')
+
+      const { data, error } = await supabase.functions.invoke('batch-tag-companies', {
+        body: {
+          geminiApiKey: settings.gemini_api_key,
+          limit: 100, // Process 100 companies at a time
+          tagOnly: false // Process all companies (with or without websites)
+        }
+      })
+
+      if (error) throw error
+
+      if (data.success) {
+        setBatchProgress(`Complete! Processed ${data.processed} companies: ${data.successCount} successful, ${data.failCount} failed`)
+
+        // Refresh companies list
+        await fetchCompanies()
+
+        alert(`Batch tagging complete!\n\nProcessed: ${data.processed} companies\nSuccessful: ${data.successCount}\nFailed: ${data.failCount}`)
+      }
+    } catch (error) {
+      console.error('Error in batch processing:', error)
+      alert('Failed to batch process companies: ' + error.message)
+    } finally {
+      setBatchProcessing(false)
+      setTimeout(() => setBatchProgress(null), 5000) // Clear progress after 5 seconds
+    }
+  }
+
   const toggleTagFilter = (tag) => {
     setSelectedTags(prev =>
       prev.includes(tag)
@@ -238,7 +290,21 @@ export default function Companies() {
     <div className="page-container">
       <div className="page-header">
         <h2 className="page-title">Companies</h2>
+        <button
+          onClick={batchTagAllCompanies}
+          disabled={batchProcessing}
+          className="batch-tag-btn"
+          title="Automatically tag all companies without tags using AI"
+        >
+          {batchProcessing ? '⏳ Processing...' : '🚀 Batch Tag All'}
+        </button>
       </div>
+
+      {batchProgress && (
+        <div className="batch-progress-alert">
+          {batchProgress}
+        </div>
+      )}
 
       <div className="filters-section">
         <input
