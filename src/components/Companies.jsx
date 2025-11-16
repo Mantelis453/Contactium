@@ -127,11 +127,6 @@ export default function Companies() {
   }
 
   const scrapeCompanyWebsite = async (company) => {
-    if (!company.website) {
-      alert('No website URL available for this company')
-      return
-    }
-
     try {
       setScrapingCompanyId(company.id)
 
@@ -147,10 +142,12 @@ export default function Companies() {
         return
       }
 
+      const hasWebsite = company.website && company.website.trim() !== ''
+
       const { data, error } = await supabase.functions.invoke('scrape-company', {
         body: {
           companyId: company.id,
-          website: company.website,
+          website: hasWebsite ? company.website : null,
           companyName: company.company_name || company.name,
           geminiApiKey: settings.gemini_api_key
         }
@@ -163,12 +160,17 @@ export default function Companies() {
         setCompanies(prev => prev.map(c =>
           c.id === company.id ? { ...c, ...data.data.company } : c
         ))
-        alert(`Scraping successful!\n- Emails found: ${data.data.emails_found}\n- Tags: ${data.data.tags.join(', ')}`)
+
+        const resultMessage = hasWebsite
+          ? `Scraping successful!\n- Emails found: ${data.data.emails_found}\n- Total emails: ${data.data.total_emails}\n- Tags: ${data.data.tags.join(', ')}`
+          : `Tagging successful!\n- Tags added: ${data.data.tags.join(', ')}`
+
+        alert(resultMessage)
         setExpandedCompany(company.id) // Expand to show results
       }
     } catch (error) {
-      console.error('Error scraping website:', error)
-      alert('Failed to scrape website: ' + error.message)
+      console.error('Error processing company:', error)
+      alert('Failed to process company: ' + error.message)
     } finally {
       setScrapingCompanyId(null)
     }
@@ -431,11 +433,11 @@ export default function Companies() {
                     <td>
                       <button
                         onClick={() => scrapeCompanyWebsite(company)}
-                        disabled={scrapingCompanyId === company.id || !company.website}
+                        disabled={scrapingCompanyId === company.id}
                         className="scrape-btn"
-                        title={company.website ? "Scrape website for emails and info" : "No website URL"}
+                        title={company.website ? "Scrape website for emails and generate AI tags" : "Generate AI tags from company info"}
                       >
-                        {scrapingCompanyId === company.id ? '⏳' : '🔍'} Scrape
+                        {scrapingCompanyId === company.id ? '⏳' : (company.website ? '🔍' : '🏷️')} {company.website ? 'Scrape' : 'Tag'}
                       </button>
                       {company.last_scraped_at && (
                         <div className="scraped-info">

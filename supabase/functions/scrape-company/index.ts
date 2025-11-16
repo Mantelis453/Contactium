@@ -214,17 +214,10 @@ Deno.serve(async (req) => {
       )
     }
 
-    if (!website) {
-      return new Response(
-        JSON.stringify({ error: 'Website URL is required' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
-
     // Get company data including activity, email, and existing extracted_emails
     const { data: companyData, error: companyError } = await supabase
       .from('companies')
-      .select('activity, email, extracted_emails')
+      .select('activity, email, extracted_emails, industry, location')
       .eq('id', companyId)
       .single()
 
@@ -238,32 +231,22 @@ Deno.serve(async (req) => {
       .update({ scraping_status: 'in_progress' })
       .eq('id', companyId)
 
-    // Scrape the website
-    console.log(`Scraping website: ${website}`)
-    const scrapeResult = await scrapeWebsite(website)
-
-    if (scrapeResult.error) {
-      // Update with error status
-      await supabase
-        .from('companies')
-        .update({
-          scraping_status: 'failed',
-          scraping_error: scrapeResult.error,
-          last_scraped_at: new Date().toISOString()
-        })
-        .eq('id', companyId)
-
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: scrapeResult.error
-        }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
-
+    // Initialize default values
+    let scrapeResult = { html: '', emails: [], textContent: '', error: undefined }
     let businessSummary = 'No summary available'
     let tags: string[] = []
+
+    // Scrape the website if URL is provided
+    if (website) {
+      console.log(`Scraping website: ${website}`)
+      scrapeResult = await scrapeWebsite(website)
+
+      if (scrapeResult.error) {
+        console.warn(`Website scraping failed: ${scrapeResult.error}. Proceeding with tagging only.`)
+      }
+    } else {
+      console.log('No website provided. Proceeding with tagging only.')
+    }
 
     // Add company activity as a tag if it exists (Lithuanian business activity)
     if (companyData?.activity) {
@@ -272,24 +255,41 @@ Deno.serve(async (req) => {
     }
 
     // Generate AI summary and tags if API key provided
-    if (geminiApiKey && scrapeResult.textContent) {
-      console.log('Generating AI summary with Gemini 2.0 Flash...')
-      businessSummary = await generateBusinessSummary(
-        companyName || 'this company',
-        scrapeResult.textContent,
-        geminiApiKey
-      )
+    if (geminiApiKey) {
+      if (scrapeResult.textContent) {
+        // Generate from website content
+        console.log('Generating AI summary with Gemini 2.0 Flash...')
+        businessSummary = await generateBusinessSummary(
+          companyName || 'this company',
+          scrapeResult.textContent,
+          geminiApiKey
+        )
 
-      console.log('Generating tags with Gemini 2.0 Flash...')
-      const aiTags = await generateTags(
-        companyName || 'this company',
-        scrapeResult.textContent,
-        businessSummary,
-        geminiApiKey
-      )
+        console.log('Generating tags with Gemini 2.0 Flash...')
+        const aiTags = await generateTags(
+          companyName || 'this company',
+          scrapeResult.textContent,
+          businessSummary,
+          geminiApiKey
+        )
 
-      // Merge AI tags with activity tag, removing duplicates
-      tags = [...new Set([...tags, ...aiTags])]
+        // Merge AI tags with activity tag, removing duplicates
+        tags = [...new Set([...tags, ...aiTags])]
+      } else if (companyData?.activity || companyData?.industry) {
+        // Generate tags from company metadata when no website available
+        console.log('Generating tags from company metadata with Gemini 2.0 Flash...')
+        const companyInfo = `Company: ${companyName || 'Unknown'}\nActivity: ${companyData?.activity || 'N/A'}\nIndustry: ${companyData?.industry || 'N/A'}\nLocation: ${companyData?.location || 'N/A'}`
+
+        const aiTags = await generateTags(
+          companyName || 'this company',
+          companyInfo,
+          `Company in ${companyData?.industry || companyData?.activity || 'general business'}`,
+          geminiApiKey
+        )
+
+        // Merge AI tags with activity tag, removing duplicates
+        tags = [...new Set([...tags, ...aiTags])]
+      }
     }
 
     // Merge emails: existing email + existing extracted_emails + new scraped emails
