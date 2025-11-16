@@ -48,89 +48,101 @@ function extractTextContent(html: string): string {
   return text.substring(0, 5000)
 }
 
-// Generate business summary using AI
+// Generate business summary using Gemini AI
 async function generateBusinessSummary(
   companyName: string,
   websiteText: string,
-  openaiApiKey: string
+  geminiApiKey: string
 ): Promise<string> {
   try {
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${openaiApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        messages: [
-          {
-            role: 'system',
-            content: 'You are a business analyst. Create concise, professional summaries of companies based on their website content. Focus on: what they do, who they serve, key products/services, and their unique value proposition. Keep summaries under 150 words.'
-          },
-          {
-            role: 'user',
-            content: `Analyze this website content for ${companyName} and create a professional business summary:\n\n${websiteText}`
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${geminiApiKey}`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          contents: [{
+            parts: [{
+              text: `You are a business analyst. Create a concise, professional summary of this company based on their website content. Focus on: what they do, who they serve, key products/services, and their unique value proposition. Keep the summary under 150 words.
+
+Company: ${companyName}
+
+Website Content:
+${websiteText}
+
+Create a professional business summary:`
+            }]
+          }],
+          generationConfig: {
+            temperature: 0.7,
+            maxOutputTokens: 300,
           }
-        ],
-        temperature: 0.7,
-        max_tokens: 300
-      })
-    })
+        })
+      }
+    )
 
     if (!response.ok) {
-      throw new Error(`OpenAI API error: ${response.statusText}`)
+      throw new Error(`Gemini API error: ${response.statusText}`)
     }
 
     const data = await response.json()
-    return data.choices[0]?.message?.content || 'Unable to generate summary'
+    return data.candidates?.[0]?.content?.parts?.[0]?.text || 'Unable to generate summary'
   } catch (error) {
     console.error('Error generating summary:', error)
     return 'Summary generation failed'
   }
 }
 
-// Auto-generate tags based on content
+// Auto-generate tags based on content using Gemini
 async function generateTags(
   companyName: string,
   websiteText: string,
   businessSummary: string,
-  openaiApiKey: string
+  geminiApiKey: string
 ): Promise<string[]> {
   try {
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${openaiApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        messages: [
-          {
-            role: 'system',
-            content: `You are a business categorization expert. Generate 3-7 relevant tags for companies based on their business summary and website content. Use tags like: B2B, B2C, SaaS, E-commerce, FinTech, HealthTech, EdTech, AI/ML, Blockchain, Cloud, Startup, Enterprise, Remote-first, Hiring, Funded, High-growth, Manufacturing, Consulting, Agency, etc. Return ONLY a JSON array of tag strings, nothing else.`
-          },
-          {
-            role: 'user',
-            content: `Company: ${companyName}\nSummary: ${businessSummary}\n\nGenerate appropriate tags (JSON array only):`
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${geminiApiKey}`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          contents: [{
+            parts: [{
+              text: `You are a business categorization expert. Generate 3-7 relevant tags for this company based on their business summary.
+
+Use tags like: B2B, B2C, SaaS, E-commerce, FinTech, HealthTech, EdTech, AI/ML, Blockchain, Cloud, Startup, Enterprise, Remote-first, Hiring, Funded, High-growth, Manufacturing, Consulting, Agency, etc.
+
+Company: ${companyName}
+Summary: ${businessSummary}
+
+Return ONLY a JSON array of tag strings, nothing else. Example: ["B2B", "SaaS", "AI/ML"]`
+            }]
+          }],
+          generationConfig: {
+            temperature: 0.5,
+            maxOutputTokens: 100,
           }
-        ],
-        temperature: 0.5,
-        max_tokens: 100
-      })
-    })
+        })
+      }
+    )
 
     if (!response.ok) {
-      throw new Error(`OpenAI API error: ${response.statusText}`)
+      throw new Error(`Gemini API error: ${response.statusText}`)
     }
 
     const data = await response.json()
-    const content = data.choices[0]?.message?.content || '[]'
+    const content = data.candidates?.[0]?.content?.parts?.[0]?.text || '[]'
 
     // Parse JSON array from response
     try {
-      const tags = JSON.parse(content)
+      // Clean up the response - remove markdown code blocks if present
+      const cleanContent = content.replace(/```json\n?|\n?```/g, '').trim()
+      const tags = JSON.parse(cleanContent)
       return Array.isArray(tags) ? tags.slice(0, 7) : []
     } catch {
       // Fallback: extract tags from text
@@ -193,7 +205,7 @@ Deno.serve(async (req) => {
   const supabase = createSupabaseClient()
 
   try {
-    const { companyId, website, companyName, openaiApiKey } = await req.json()
+    const { companyId, website, companyName, geminiApiKey } = await req.json()
 
     if (!companyId) {
       return new Response(
@@ -243,20 +255,20 @@ Deno.serve(async (req) => {
     let tags: string[] = []
 
     // Generate AI summary and tags if API key provided
-    if (openaiApiKey && scrapeResult.textContent) {
-      console.log('Generating AI summary...')
+    if (geminiApiKey && scrapeResult.textContent) {
+      console.log('Generating AI summary with Gemini 2.0 Flash...')
       businessSummary = await generateBusinessSummary(
         companyName || 'this company',
         scrapeResult.textContent,
-        openaiApiKey
+        geminiApiKey
       )
 
-      console.log('Generating tags...')
+      console.log('Generating tags with Gemini 2.0 Flash...')
       tags = await generateTags(
         companyName || 'this company',
         scrapeResult.textContent,
         businessSummary,
-        openaiApiKey
+        geminiApiKey
       )
     }
 

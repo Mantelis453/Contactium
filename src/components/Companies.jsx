@@ -135,18 +135,24 @@ export default function Companies() {
     try {
       setScrapingCompanyId(company.id)
 
-      // Get user's OpenAI API key from settings
+      // Get user's Gemini API key from settings
       const { data: settings } = await supabase
         .from('user_settings')
-        .select('openai_api_key')
+        .select('gemini_api_key')
         .single()
+
+      if (!settings?.gemini_api_key) {
+        alert('Please add your Gemini API key in Settings first')
+        setScrapingCompanyId(null)
+        return
+      }
 
       const { data, error } = await supabase.functions.invoke('scrape-company', {
         body: {
           companyId: company.id,
           website: company.website,
           companyName: company.company_name || company.name,
-          openaiApiKey: settings?.openai_api_key
+          geminiApiKey: settings.gemini_api_key
         }
       })
 

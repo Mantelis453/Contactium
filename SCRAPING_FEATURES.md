@@ -31,12 +31,12 @@ The scraping system allows you to:
 ### 2. AI Business Summaries
 
 **What it does:**
-- Uses OpenAI GPT-4 to analyze website content
+- Uses Google Gemini 2.0 Flash to analyze website content
 - Generates a concise professional summary (under 150 words)
 - Focuses on: what they do, who they serve, key products/services, value proposition
 
 **Requirements:**
-- OpenAI API key must be configured in Settings
+- Gemini API key must be configured in Settings
 
 **Example Summary:**
 ```
@@ -128,7 +128,7 @@ updated_at TIMESTAMP
   "companyId": "uuid",
   "website": "https://company.com",
   "companyName": "Company Name",
-  "openaiApiKey": "sk-..."
+  "geminiApiKey": "AIza..."
 }
 ```
 
@@ -198,12 +198,12 @@ supabase functions deploy scrape-company
 supabase functions deploy company-tags
 ```
 
-### 3. Configure OpenAI API Key
+### 3. Configure Gemini API Key
 
-1. Go to [OpenAI Platform](https://platform.openai.com/api-keys)
+1. Go to [Google AI Studio](https://aistudio.google.com/app/apikey)
 2. Create a new API key
 3. In Contactium, go to Settings
-4. Paste your API key in the OpenAI API Key field
+4. Paste your API key in the Gemini API Key field
 5. Save settings
 
 ### 4. Seed Default Tags (Optional)
@@ -226,7 +226,7 @@ const { data, error } = await supabase.functions.invoke('scrape-company', {
     companyId: 'company-uuid',
     website: 'https://techstartup.com',
     companyName: 'TechStartup',
-    openaiApiKey: 'sk-...'
+    geminiApiKey: 'AIza...'
   }
 })
 ```
@@ -302,7 +302,7 @@ LIMIT 20;
 1. Check if website URL is correct and accessible
 2. Verify website allows automated access (no CAPTCHA)
 3. Check Supabase Edge Function logs for details
-4. Ensure OpenAI API key is valid and has credits
+4. Ensure Gemini API key is valid
 
 ### No Emails Found
 
@@ -339,17 +339,22 @@ LIMIT 20;
 
 ## Cost Considerations
 
-### OpenAI API Usage
+### Google Gemini API Usage
 
-- **Model**: GPT-4-mini
+- **Model**: Gemini 2.0 Flash
 - **Summary generation**: ~300 tokens per company
 - **Tag generation**: ~100 tokens per company
-- **Total**: ~400 tokens = $0.0006 per company (approximate)
+- **Total**: ~400 tokens
 
-**Monthly cost examples:**
-- 100 companies: ~$0.06
-- 1,000 companies: ~$0.60
-- 10,000 companies: ~$6.00
+**Gemini 2.0 Flash Pricing:**
+- **Free tier**: 1,500 requests per day, 1 million tokens per day
+- **Paid tier**: Free up to limits, then very low cost
+
+**Monthly cost examples (within free tier):**
+- 1,500 companies/day: **FREE**
+- 45,000 companies/month: **FREE**
+
+For most use cases, this will stay **completely FREE** within Gemini's generous limits!
 
 ### Supabase Edge Functions
 
@@ -377,7 +382,7 @@ Planned features:
 For issues or questions:
 - Check Supabase Edge Function logs
 - Review browser console for frontend errors
-- Verify OpenAI API key is valid
+- Verify Gemini API key is valid
 - Contact support@contactium.com
 
 ## Security
