@@ -25,17 +25,57 @@ function extractEmails(html: string): string[] {
 
 // Extract phone numbers
 function extractPhoneNumbers(html: string): string[] {
-  // International format, US format, Lithuanian format, etc.
-  const phoneRegex = /(\+\d{1,3}[-.\s]?)?\(?\d{2,4}\)?[-.\s]?\d{2,4}[-.\s]?\d{2,4}[-.\s]?\d{0,4}/g
-  const phones = html.match(phoneRegex) || []
+  const phones: string[] = []
 
-  // Filter to only keep valid-looking phone numbers (at least 7 digits)
+  // Lithuanian international format: +370 xxx xxx xxx or +370-xxx-xxx-xxx
+  const lithuanianIntl = html.match(/\+370[-.\s]?\d{1,3}[-.\s]?\d{2,3}[-.\s]?\d{2,4}/g)
+  if (lithuanianIntl) phones.push(...lithuanianIntl)
+
+  // Lithuanian domestic format: 0 xxx xxx xxx or 8 xxx xxx xxx
+  const lithuanianDomestic = html.match(/\b[08][-.\s]?\d{1,3}[-.\s]?\d{2,3}[-.\s]?\d{2,4}\b/g)
+  if (lithuanianDomestic) phones.push(...lithuanianDomestic)
+
+  // Generic international format: +XX XXX XXX XXX
+  const international = html.match(/\+\d{1,3}[-.\s]?\d{2,4}[-.\s]?\d{2,4}[-.\s]?\d{2,4}/g)
+  if (international) phones.push(...international)
+
+  // Generic format with parentheses: (XXX) XXX-XXXX
+  const withParens = html.match(/\(\d{2,4}\)[-.\s]?\d{2,4}[-.\s]?\d{2,4}/g)
+  if (withParens) phones.push(...withParens)
+
+  // Filter to only keep valid-looking phone numbers
   const filtered = phones.filter(phone => {
-    const digitCount = phone.replace(/\D/g, '').length
-    return digitCount >= 7 && digitCount <= 15
+    const digitsOnly = phone.replace(/\D/g, '')
+    const digitCount = digitsOnly.length
+
+    // Valid phone numbers: 7-15 digits
+    if (digitCount < 7 || digitCount > 15) return false
+
+    // Lithuanian numbers should start with +370, 8, or 0
+    if (phone.startsWith('+370') || phone.startsWith('8') || phone.startsWith('0')) {
+      return digitCount >= 8 && digitCount <= 11
+    }
+
+    // Other international numbers
+    if (phone.startsWith('+')) {
+      return digitCount >= 10 && digitCount <= 15
+    }
+
+    return digitCount >= 7
   })
 
-  return [...new Set(filtered)]
+  // Clean up and deduplicate
+  const cleaned = filtered.map(phone => {
+    // Normalize spacing
+    let clean = phone.trim()
+    // Convert 8xxx to +370xxx for Lithuanian numbers
+    if (clean.startsWith('8') && clean.replace(/\D/g, '').length === 9) {
+      clean = '+370' + clean.substring(1)
+    }
+    return clean
+  })
+
+  return [...new Set(cleaned)]
 }
 
 // Extract social media links
