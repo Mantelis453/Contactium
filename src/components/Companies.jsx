@@ -213,9 +213,17 @@ export default function Companies() {
         }
       })
 
-      if (error) throw error
+      if (error) {
+        console.error('Supabase function error:', error)
+        throw error
+      }
 
-      if (data.success) {
+      // Check if the response indicates failure
+      if (data && !data.success) {
+        throw new Error(data.error || 'Deep scraping failed')
+      }
+
+      if (data && data.success) {
         // Update company in local state
         setCompanies(prev => prev.map(c =>
           c.id === company.id ? { ...c, ...data.data.company } : c
@@ -237,10 +245,13 @@ ${details.employeeCount ? `👔 Employees: ~${details.employeeCount}` : ''}`
 
         alert(resultMessage)
         setExpandedCompany(company.id) // Expand to show results
+      } else {
+        throw new Error('Unexpected response from deep scrape function')
       }
     } catch (error) {
       console.error('Error deep scraping company:', error)
-      alert('Failed to deep scrape company: ' + error.message)
+      const errorMessage = error.message || 'Unknown error occurred'
+      alert('Failed to deep scrape company:\n\n' + errorMessage)
     } finally {
       setDeepScrapingCompanyId(null)
     }
