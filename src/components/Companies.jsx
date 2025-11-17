@@ -1,10 +1,16 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { useAuth } from '../hooks/useAuth'
+import { useSubscription } from '../contexts/SubscriptionContext'
 import SearchableSelect from './SearchableSelect'
 import API_URL from '../config/api'
 import '../styles/Companies.css'
 
 export default function Companies() {
+  const { user } = useAuth()
+  const navigate = useNavigate()
+  const { subscription, loading: subscriptionLoading } = useSubscription()
   const [companies, setCompanies] = useState([])
   const [activities, setActivities] = useState([])
   const [loading, setLoading] = useState(true)
@@ -14,6 +20,13 @@ export default function Companies() {
   const [batchProcessing, setBatchProcessing] = useState(false)
   const [batchProgress, setBatchProgress] = useState(null)
   const [deepScrapingCompanyId, setDeepScrapingCompanyId] = useState(null)
+
+  // Selection state
+  const [selectedCompanies, setSelectedCompanies] = useState(new Set())
+  const [contactLists, setContactLists] = useState([])
+  const [showAddToListModal, setShowAddToListModal] = useState(false)
+  const [selectedListId, setSelectedListId] = useState('')
+  const [addingToList, setAddingToList] = useState(false)
 
   // Pagination
   const [offset, setOffset] = useState(0)
@@ -37,6 +50,9 @@ export default function Companies() {
   const [editingTags, setEditingTags] = useState(null)
   const [newTagInput, setNewTagInput] = useState('')
 
+  // Check if user has access to Companies page (Starter or Professional plan)
+  const hasAccess = subscription?.tier === 'starter' || subscription?.tier === 'professional'
+
   // Debounce search query - wait 500ms after user stops typing
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -48,7 +64,10 @@ export default function Companies() {
 
   useEffect(() => {
     loadAvailableTags()
-  }, [])
+    if (user?.id && hasAccess) {
+      loadContactLists()
+    }
+  }, [user, hasAccess])
 
   useEffect(() => {
     setOffset(0)
@@ -369,6 +388,121 @@ ${details.employeeCount ? `👔 Employees: ~${details.employeeCount}` : ''}`
     setWebsiteFilter('all')
   }
 
+  const loadContactLists = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('contact_lists')
+        .select('id, name')
+        .eq('user_id', user.id)
+        .order('name')
+
+      if (error) throw error
+      setContactLists(data || [])
+    } catch (error) {
+      console.error('Error loading contact lists:', error)
+    }
+  }
+
+  const toggleCompanySelection = (companyId) => {
+    const newSelection = new Set(selectedCompanies)
+    if (newSelection.has(companyId)) {
+      newSelection.delete(companyId)
+    } else {
+      newSelection.add(companyId)
+    }
+    setSelectedCompanies(newSelection)
+  }
+
+  const toggleSelectAll = () => {
+    if (selectedCompanies.size === companies.length) {
+      setSelectedCompanies(new Set())
+    } else {
+      setSelectedCompanies(new Set(companies.map(c => c.id)))
+    }
+  }
+
+  const handleAddToList = () => {
+    if (selectedCompanies.size === 0) {
+      alert('Please select at least one company')
+      return
+    }
+    setShowAddToListModal(true)
+  }
+
+  const addCompaniesToList = async () => {
+    if (!selectedListId) {
+      alert('Please select a contact list')
+      return
+    }
+
+    try {
+      setAddingToList(true)
+
+      const selectedCompanyObjects = companies.filter(c => selectedCompanies.has(c.id))
+
+      // Prepare contacts from selected companies
+      const contacts = selectedCompanyObjects.map(company => ({
+        list_id: selectedListId,
+        email: company.email || (company.extracted_emails && company.extracted_emails[0]) || '',
+        name: company.company_name,
+        company: company.company_name,
+        notes: `Phone: ${company.phone || 'N/A'}\nWebsite: ${company.website || 'N/A'}`
+      })).filter(contact => contact.email) // Only add companies with emails
+
+      if (contacts.length === 0) {
+        alert('None of the selected companies have email addresses')
+        setAddingToList(false)
+        return
+      }
+
+      const { data, error } = await supabase
+        .from('contacts')
+        .insert(contacts)
+        .select()
+
+      if (error) throw error
+
+      alert(`Successfully added ${contacts.length} companies to the contact list!`)
+      setShowAddToListModal(false)
+      setSelectedCompanies(new Set())
+      setSelectedListId('')
+    } catch (error) {
+      console.error('Error adding companies to list:', error)
+      alert('Failed to add companies to list: ' + error.message)
+    } finally {
+      setAddingToList(false)
+    }
+  }
+
+  if (subscriptionLoading) {
+    return (
+      <div className="page-container">
+        <div className="loading-state">Loading...</div>
+      </div>
+    )
+  }
+
+  if (!hasAccess) {
+    return (
+      <div className="page-container">
+        <div className="upgrade-prompt">
+          <h2>📊 Companies Feature</h2>
+          <p>Access to the Companies database is available on the Starter and Professional plans.</p>
+          <p>Upgrade your plan to:</p>
+          <ul>
+            <li>✓ Access database of companies</li>
+            <li>✓ Scrape company websites for emails</li>
+            <li>✓ Add companies to contact lists</li>
+            <li>✓ Deep scrape for detailed company information</li>
+          </ul>
+          <button onClick={() => navigate('/subscription')} className="primary-btn">
+            Upgrade to Starter Plan
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   if (loading && companies.length === 0) {
     return (
       <div className="page-container">
@@ -381,14 +515,25 @@ ${details.employeeCount ? `👔 Employees: ~${details.employeeCount}` : ''}`
     <div className="page-container">
       <div className="page-header">
         <h2 className="page-title">Companies</h2>
-        <button
-          onClick={batchTagAllCompanies}
-          disabled={batchProcessing}
-          className="batch-tag-btn"
-          title="Automatically tag all companies without tags using AI"
-        >
-          {batchProcessing ? '⏳ Processing...' : '🚀 Batch Tag All'}
-        </button>
+        <div className="header-actions">
+          {selectedCompanies.size > 0 && (
+            <button
+              onClick={handleAddToList}
+              className="primary-btn"
+              title="Add selected companies to a contact list"
+            >
+              📋 Add {selectedCompanies.size} to List
+            </button>
+          )}
+          <button
+            onClick={batchTagAllCompanies}
+            disabled={batchProcessing}
+            className="batch-tag-btn"
+            title="Automatically tag all companies without tags using AI"
+          >
+            {batchProcessing ? '⏳ Processing...' : '🚀 Batch Tag All'}
+          </button>
+        </div>
       </div>
 
       {batchProgress && (
@@ -499,6 +644,14 @@ ${details.employeeCount ? `👔 Employees: ~${details.employeeCount}` : ''}`
           <table className="companies-table">
             <thead>
               <tr>
+                <th>
+                  <input
+                    type="checkbox"
+                    checked={companies.length > 0 && selectedCompanies.size === companies.length}
+                    onChange={toggleSelectAll}
+                    title="Select all companies"
+                  />
+                </th>
                 <th></th>
                 <th>Company Name</th>
                 <th>Code</th>
@@ -513,6 +666,14 @@ ${details.employeeCount ? `👔 Employees: ~${details.employeeCount}` : ''}`
               {companies.map((company) => (
                 <>
                   <tr key={company.id} className={expandedCompany === company.id ? 'expanded-row' : ''}>
+                    <td>
+                      <input
+                        type="checkbox"
+                        checked={selectedCompanies.has(company.id)}
+                        onChange={() => toggleCompanySelection(company.id)}
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                    </td>
                     <td>
                       <button
                         onClick={() => setExpandedCompany(expandedCompany === company.id ? null : company.id)}
@@ -632,7 +793,7 @@ ${details.employeeCount ? `👔 Employees: ~${details.employeeCount}` : ''}`
                   </tr>
                   {expandedCompany === company.id && (
                     <tr className="expanded-content">
-                      <td colSpan="8">
+                      <td colSpan="9">
                         <div className="company-details">
                           <div className="detail-section">
                             <h4>Business Summary</h4>
@@ -778,6 +939,51 @@ ${details.employeeCount ? `👔 Employees: ~${details.employeeCount}` : ''}`
               </button>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Add to Contact List Modal */}
+      {showAddToListModal && (
+        <div className="modal-overlay" onClick={() => setShowAddToListModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <h3>Add Companies to Contact List</h3>
+            <p>Select a contact list to add {selectedCompanies.size} selected companies:</p>
+
+            {contactLists.length === 0 ? (
+              <div className="empty-state">
+                <p>You don't have any contact lists yet.</p>
+                <button onClick={() => navigate('/contact-lists')} className="primary-btn">
+                  Create Contact List
+                </button>
+              </div>
+            ) : (
+              <>
+                <select
+                  value={selectedListId}
+                  onChange={(e) => setSelectedListId(e.target.value)}
+                  className="modal-select"
+                >
+                  <option value="">Select a list...</option>
+                  {contactLists.map(list => (
+                    <option key={list.id} value={list.id}>{list.name}</option>
+                  ))}
+                </select>
+
+                <div className="modal-actions">
+                  <button onClick={() => setShowAddToListModal(false)} className="secondary-btn">
+                    Cancel
+                  </button>
+                  <button
+                    onClick={addCompaniesToList}
+                    disabled={!selectedListId || addingToList}
+                    className="primary-btn"
+                  >
+                    {addingToList ? 'Adding...' : 'Add to List'}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       )}
     </div>
