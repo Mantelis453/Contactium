@@ -332,11 +332,22 @@ ${details.employeeCount ? `👔 Employees: ~${details.employeeCount}` : ''}`
 
   // Check if website value indicates "no website"
   const hasValidWebsite = (website) => {
-    if (!website) return false
-    const noWebsiteIndicators = ['neturime', 'nėra', 'nera', 'n/a', 'na', 'none', 'no website', 'no', '-', 'www.neturime']
+    if (!website || website.trim() === '') return false
+
     const websiteLower = website.toLowerCase().trim()
-    // Check if the website contains any of the no-website indicators
-    return !noWebsiteIndicators.some(indicator => websiteLower.includes(indicator))
+
+    // Exact matches for short placeholders
+    const exactMatches = ['n/a', 'na', 'no', '-', 'nėra', 'nera']
+    if (exactMatches.includes(websiteLower)) return false
+
+    // Check if the website contains Lithuanian "no website" indicators
+    const containsIndicators = ['neturime', 'none', 'no website', 'www.neturime']
+    if (containsIndicators.some(indicator => websiteLower.includes(indicator))) return false
+
+    // Must contain a dot (valid domain)
+    if (!websiteLower.includes('.')) return false
+
+    return true
   }
 
   const batchTagAllCompanies = async () => {
