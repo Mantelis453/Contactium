@@ -98,20 +98,29 @@ export default function Companies() {
         limit: limit.toString()
       })
 
-      const response = await fetch(`${API_URL}/companies?${params}`)
-      const data = await response.json()
+      // Get auth session and anon key for Supabase Edge Function auth
+      const { data: { session } } = await supabase.auth.getSession()
+      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+
+      const response = await fetch(`${API_URL}/companies?${params}`, {
+        headers: {
+          'Authorization': `Bearer ${session?.access_token || anonKey}`,
+          'apikey': anonKey
+        }
+      })
+      const responseData = await response.json()
 
       if (response.ok) {
         if (reset) {
-          setCompanies(data.companies || [])
+          setCompanies(responseData.companies || [])
         } else {
-          setCompanies(prev => [...prev, ...(data.companies || [])])
+          setCompanies(prev => [...prev, ...(responseData.companies || [])])
         }
-        setTotal(data.total || 0)
-        setHasMore(data.hasMore || false)
+        setTotal(responseData.total || 0)
+        setHasMore(responseData.hasMore || false)
         setOffset(currentOffset + limit)
       } else {
-        console.error('Error loading companies:', data.error)
+        console.error('Error loading companies:', responseData.error)
       }
     } catch (error) {
       console.error('Error loading companies:', error)
@@ -129,7 +138,16 @@ export default function Companies() {
 
   const loadActivities = async () => {
     try {
-      const response = await fetch(`${API_URL}/companies-activities`)
+      // Get auth session and anon key for Supabase Edge Function auth
+      const { data: { session } } = await supabase.auth.getSession()
+      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+
+      const response = await fetch(`${API_URL}/companies-activities`, {
+        headers: {
+          'Authorization': `Bearer ${session?.access_token || anonKey}`,
+          'apikey': anonKey
+        }
+      })
       const data = await response.json()
 
       if (response.ok) {
