@@ -3,8 +3,6 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
 import { sendCampaign } from '../lib/campaignSender'
-import SearchableSelect from './SearchableSelect'
-import API_URL from '../config/api'
 import '../styles/CreateCampaign.css'
 
 export default function CreateCampaign() {
@@ -12,13 +10,9 @@ export default function CreateCampaign() {
   const navigate = useNavigate()
   const [currentStep, setCurrentStep] = useState(1)
   const [loading, setLoading] = useState(false)
-  const [companies, setCompanies] = useState([])
-  const [loadingCompanies, setLoadingCompanies] = useState(false)
   const [generatingEmail, setGeneratingEmail] = useState(false)
-  const [activities, setActivities] = useState([])
 
   // Contact Lists
-  const [audienceType, setAudienceType] = useState('companies') // 'companies' or 'contacts'
   const [contactLists, setContactLists] = useState([])
   const [selectedListId, setSelectedListId] = useState('')
   const [listContacts, setListContacts] = useState([])
@@ -30,7 +24,6 @@ export default function CreateCampaign() {
     category: '',
     description: '',
     sendDate: '',
-    selectedCompanies: [],
     senderName: '',
     senderCompany: '',
     senderTitle: '',
@@ -39,13 +32,6 @@ export default function CreateCampaign() {
   })
 
   const [referenceEmail, setReferenceEmail] = useState(null)
-  const [filters, setFilters] = useState({
-    minEmployees: '',
-    maxEmployees: '',
-    activity: '',
-    minRating: '',
-    maxRating: ''
-  })
   const [emailApproved, setEmailApproved] = useState(false)
   const [emailMode, setEmailMode] = useState('ai') // 'ai' or 'manual'
   const [manualEmail, setManualEmail] = useState({ subject: '', body: '' })
@@ -53,73 +39,16 @@ export default function CreateCampaign() {
   const totalSteps = 5
 
   useEffect(() => {
-    loadActivities()
-  }, [])
-
-  const loadActivities = async () => {
-    try {
-      const response = await fetch(`${API_URL}/companies-activities`)
-      const data = await response.json()
-      if (response.ok) {
-        setActivities(data.activities || [])
-      }
-    } catch (error) {
-      console.error('Error loading activities:', error)
+    if (user?.id) {
+      loadContactLists()
     }
-  }
+  }, [user])
 
   const handleInputChange = (e) => {
     setFormData({
       ...formData,
       [e.target.name]: e.target.value
     })
-  }
-
-  const handleFilterChange = (e) => {
-    setFilters({
-      ...filters,
-      [e.target.name]: e.target.value
-    })
-  }
-
-  const loadCompanies = async () => {
-    setLoadingCompanies(true)
-    try {
-      const params = new URLSearchParams({
-        ...(filters.activity && { activity: filters.activity }),
-        ...(filters.minEmployees && { minEmployees: filters.minEmployees }),
-        ...(filters.maxEmployees && { maxEmployees: filters.maxEmployees }),
-        ...(filters.minRating && { minRating: filters.minRating }),
-        ...(filters.maxRating && { maxRating: filters.maxRating }),
-        limit: '1000' // Get more companies for campaign
-      })
-
-      const url = `${API_URL}/companies?${params}`
-      console.log('Fetching companies from:', url)
-
-      const response = await fetch(url)
-      console.log('Response status:', response.status)
-
-      const data = await response.json()
-      console.log('Response data:', data)
-
-      if (response.ok) {
-        const companies = data.companies || []
-        console.log('Loaded companies count:', companies.length)
-        setCompanies(companies)
-
-        if (companies.length === 0) {
-          alert('No companies found matching your filters. Try adjusting the filter criteria or check if companies with valid emails exist in your database.')
-        }
-      } else {
-        throw new Error(data.error || 'Failed to load companies')
-      }
-    } catch (error) {
-      console.error('Error loading companies:', error)
-      alert(`Failed to load companies: ${error.message}. Please check the console for details.`)
-    } finally {
-      setLoadingCompanies(false)
-    }
   }
 
   const loadContactLists = async () => {
@@ -157,15 +86,6 @@ export default function CreateCampaign() {
     }
   }
 
-  const toggleCompanySelection = (companyId) => {
-    setFormData(prev => ({
-      ...prev,
-      selectedCompanies: prev.selectedCompanies.includes(companyId)
-        ? prev.selectedCompanies.filter(id => id !== companyId)
-        : [...prev.selectedCompanies, companyId]
-    }))
-  }
-
   const toggleContactSelection = (contactId) => {
     setSelectedContacts(prev =>
       prev.includes(contactId)
@@ -174,20 +94,8 @@ export default function CreateCampaign() {
     )
   }
 
-  const selectAllCompanies = () => {
-    setFormData(prev => ({
-      ...prev,
-      selectedCompanies: companies.map(c => c.id)
-    }))
-  }
-
   const generateReferenceEmail = async () => {
-    if (audienceType === 'companies' && formData.selectedCompanies.length === 0) {
-      alert('Please select at least one company first')
-      return
-    }
-
-    if (audienceType === 'contacts' && selectedContacts.length === 0) {
+    if (selectedContacts.length === 0) {
       alert('Please select at least one contact first')
       return
     }
@@ -199,59 +107,35 @@ export default function CreateCampaign() {
     try {
       const { generatePersonalizedEmail } = await import('../lib/aiService')
 
-      if (audienceType === 'companies') {
-        const firstCompany = companies.find(c => c.id === formData.selectedCompanies[0])
+      const firstContact = listContacts.find(c => c.id === selectedContacts[0])
 
-        if (!firstCompany) {
-          throw new Error('Could not find reference company')
-        }
-
-        const email = await generatePersonalizedEmail({
-          description: formData.description,
-          category: formData.category,
-          company: firstCompany,
-          senderName: formData.senderName,
-          senderCompany: formData.senderCompany,
-          senderTitle: formData.senderTitle,
-          valueProposition: formData.valueProposition,
-          callToAction: formData.callToAction
-        })
-
-        setReferenceEmail({
-          ...email,
-          companyName: firstCompany.company_name
-        })
-      } else {
-        const firstContact = listContacts.find(c => c.id === selectedContacts[0])
-
-        if (!firstContact) {
-          throw new Error('Could not find reference contact')
-        }
-
-        // Create a company-like object from contact data
-        const contactAsCompany = {
-          company_name: firstContact.company || firstContact.name || 'Contact',
-          email: firstContact.email,
-          activity: '',
-          employees: null
-        }
-
-        const email = await generatePersonalizedEmail({
-          description: formData.description,
-          category: formData.category,
-          company: contactAsCompany,
-          senderName: formData.senderName,
-          senderCompany: formData.senderCompany,
-          senderTitle: formData.senderTitle,
-          valueProposition: formData.valueProposition,
-          callToAction: formData.callToAction
-        })
-
-        setReferenceEmail({
-          ...email,
-          companyName: firstContact.name || firstContact.email
-        })
+      if (!firstContact) {
+        throw new Error('Could not find reference contact')
       }
+
+      // Create a company-like object from contact data
+      const contactAsCompany = {
+        company_name: firstContact.company || firstContact.name || 'Contact',
+        email: firstContact.email,
+        activity: '',
+        employees: null
+      }
+
+      const email = await generatePersonalizedEmail({
+        description: formData.description,
+        category: formData.category,
+        company: contactAsCompany,
+        senderName: formData.senderName,
+        senderCompany: formData.senderCompany,
+        senderTitle: formData.senderTitle,
+        valueProposition: formData.valueProposition,
+        callToAction: formData.callToAction
+      })
+
+      setReferenceEmail({
+        ...email,
+        companyName: firstContact.name || firstContact.email
+      })
     } catch (error) {
       console.error('Error generating reference email:', error)
       alert(error.message || 'Failed to generate email. Check your settings and API key.')
@@ -287,31 +171,20 @@ export default function CreateCampaign() {
 
       if (campaignError) throw campaignError
 
-      let recipients
-
-      if (audienceType === 'companies') {
-        recipients = formData.selectedCompanies.map(companyId => ({
+      // Create recipients from selected contacts
+      const recipients = selectedContacts.map(contactId => {
+        const contact = listContacts.find(c => c.id === contactId)
+        return {
           campaign_id: campaign.id,
-          company_id: companyId,
+          contact_id: contactId,
+          recipient_email: contact.email,
+          recipient_name: contact.name || contact.email,
           personalized_email: null,
           status: 'pending'
-        }))
-      } else {
-        // For contacts, we need to include contact_id and recipient email/name
-        recipients = selectedContacts.map(contactId => {
-          const contact = listContacts.find(c => c.id === contactId)
-          return {
-            campaign_id: campaign.id,
-            contact_id: contactId,
-            recipient_email: contact.email,
-            recipient_name: contact.name || contact.email,
-            personalized_email: null,
-            status: 'pending'
-          }
-        })
-      }
+        }
+      })
 
-      const { error: recipientsError } = await supabase
+      const { error: recipientsError} = await supabase
         .from('campaign_recipients')
         .insert(recipients)
 
@@ -354,16 +227,9 @@ export default function CreateCampaign() {
         }
         return true
       case 3:
-        if (audienceType === 'companies') {
-          if (formData.selectedCompanies.length === 0) {
-            alert('Please select at least one company')
-            return false
-          }
-        } else {
-          if (selectedContacts.length === 0) {
-            alert('Please select at least one contact')
-            return false
-          }
+        if (selectedContacts.length === 0) {
+          alert('Please select at least one contact from your contact list')
+          return false
         }
         return true
       case 4:
@@ -554,220 +420,88 @@ export default function CreateCampaign() {
       case 3:
         return (
           <div className="step-content">
-            <h3>Target Audience</h3>
-            <p className="step-description">Choose who to send your campaign to</p>
+            <h3>Select Recipients</h3>
+            <p className="step-description">Choose contacts from your contact lists to send this campaign to</p>
 
-            <div className="email-mode-toggle">
-              <button
-                className={`mode-btn ${audienceType === 'companies' ? 'active' : ''}`}
-                onClick={() => {
-                  setAudienceType('companies')
-                }}
-              >
-                Lithuanian Companies
-              </button>
-              <button
-                className={`mode-btn ${audienceType === 'contacts' ? 'active' : ''}`}
-                onClick={() => {
-                  setAudienceType('contacts')
-                  if (contactLists.length === 0) {
-                    loadContactLists()
-                  }
-                }}
-              >
-                Your Contact Lists
-              </button>
-            </div>
-
-            {audienceType === 'companies' ? (
+            {loadingLists ? (
+              <div className="loading-state">Loading your contact lists...</div>
+            ) : contactLists.length === 0 ? (
+              <div className="empty-state">
+                <p>You don't have any contact lists yet. Create a contact list first to use campaigns.</p>
+                <button
+                  onClick={() => navigate('/contact-lists')}
+                  className="primary-btn"
+                >
+                  Create Your First Contact List
+                </button>
+              </div>
+            ) : (
               <>
-                <div className="filter-grid">
-                  <div className="form-group">
-                    <label>Activity</label>
-                    <SearchableSelect
-                      options={activities}
-                      value={filters.activity}
-                      onChange={(value) => setFilters({ ...filters, activity: value })}
-                      placeholder="Search activities..."
-                    />
-                  </div>
-
-                  <div className="form-group">
-                    <label>Min Employees</label>
-                    <input
-                      type="number"
-                      name="minEmployees"
-                      value={filters.minEmployees}
-                      onChange={handleFilterChange}
-                      placeholder="e.g., 10"
-                      className="form-input"
-                    />
-                  </div>
-
-                  <div className="form-group">
-                    <label>Max Employees</label>
-                    <input
-                      type="number"
-                      name="maxEmployees"
-                      value={filters.maxEmployees}
-                      onChange={handleFilterChange}
-                      placeholder="e.g., 200"
-                      className="form-input"
-                    />
-                  </div>
-
-                  <div className="form-group">
-                    <label>Min Rating</label>
-                    <input
-                      type="number"
-                      name="minRating"
-                      value={filters.minRating}
-                      onChange={handleFilterChange}
-                      placeholder="e.g., 5.0"
-                      step="0.1"
-                      className="form-input"
-                    />
-                  </div>
-
-                  <div className="form-group">
-                    <label>Max Rating</label>
-                    <input
-                      type="number"
-                      name="maxRating"
-                      value={filters.maxRating}
-                      onChange={handleFilterChange}
-                      placeholder="e.g., 10.0"
-                      step="0.1"
-                      className="form-input"
-                    />
-                  </div>
+                <div className="form-group">
+                  <label>Select a Contact List</label>
+                  <select
+                    value={selectedListId}
+                    onChange={(e) => {
+                      setSelectedListId(e.target.value)
+                      setSelectedContacts([])
+                      if (e.target.value) {
+                        loadListContacts(e.target.value)
+                      } else {
+                        setListContacts([])
+                      }
+                    }}
+                    className="form-input"
+                  >
+                    <option value="">Choose a list...</option>
+                    {contactLists.map((list) => (
+                      <option key={list.id} value={list.id}>
+                        {list.name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
-                <button onClick={loadCompanies} className="primary-btn" disabled={loadingCompanies}>
-                  {loadingCompanies ? 'Loading...' : 'Find Companies'}
-                </button>
-
-                {companies.length > 0 && (
+                {selectedListId && listContacts.length > 0 && (
                   <div className="companies-section">
                     <div className="companies-header">
-                      <h4>Found {companies.length} companies</h4>
-                      <button onClick={selectAllCompanies} className="secondary-btn">
+                      <h4>Contacts in this list ({listContacts.length})</h4>
+                      <button
+                        onClick={() => setSelectedContacts(listContacts.map(c => c.id))}
+                        className="secondary-btn"
+                      >
                         Select All
                       </button>
                     </div>
 
                     <div className="companies-list">
-                      {companies.map((company) => (
-                        <div key={company.id} className="company-item">
+                      {listContacts.map((contact) => (
+                        <div key={contact.id} className="company-item">
                           <input
                             type="checkbox"
-                            id={`company-${company.id}`}
-                            checked={formData.selectedCompanies.includes(company.id)}
-                            onChange={() => toggleCompanySelection(company.id)}
+                            id={`contact-${contact.id}`}
+                            checked={selectedContacts.includes(contact.id)}
+                            onChange={() => toggleContactSelection(contact.id)}
                           />
-                          <label htmlFor={`company-${company.id}`}>
-                            <strong>{company.company_name}</strong>
-                            {company.email && <span className="company-email"> • {company.email}</span>}
-                            {company.activity && <div className="company-meta">{company.activity}</div>}
-                            {company.employees && <span className="company-meta">{company.employees} employees</span>}
+                          <label htmlFor={`contact-${contact.id}`}>
+                            <strong>{contact.name || contact.email}</strong>
+                            {contact.name && <span className="company-email"> • {contact.email}</span>}
+                            {contact.company && <div className="company-meta">{contact.company}</div>}
+                            {contact.notes && <div className="company-meta">{contact.notes}</div>}
                           </label>
                         </div>
                       ))}
                     </div>
 
                     <div className="selection-summary">
-                      Selected: <strong>{formData.selectedCompanies.length}</strong> companies
+                      Selected: <strong>{selectedContacts.length}</strong> contacts
                     </div>
                   </div>
                 )}
-              </>
-            ) : (
-              <>
-                <div className="preview-info">
-                  <p>Select contacts from your saved contact lists to target with this campaign.</p>
-                </div>
 
-                {loadingLists ? (
-                  <div className="loading-state">Loading your contact lists...</div>
-                ) : contactLists.length === 0 ? (
+                {selectedListId && listContacts.length === 0 && (
                   <div className="empty-state">
-                    <p>You don't have any contact lists yet.</p>
-                    <button
-                      onClick={() => navigate('/contact-lists')}
-                      className="secondary-btn"
-                    >
-                      Create Your First Contact List
-                    </button>
+                    <p>This contact list is empty. Add contacts to this list first.</p>
                   </div>
-                ) : (
-                  <>
-                    <div className="form-group">
-                      <label>Select a Contact List</label>
-                      <select
-                        value={selectedListId}
-                        onChange={(e) => {
-                          setSelectedListId(e.target.value)
-                          setSelectedContacts([])
-                          if (e.target.value) {
-                            loadListContacts(e.target.value)
-                          } else {
-                            setListContacts([])
-                          }
-                        }}
-                        className="form-input"
-                      >
-                        <option value="">Choose a list...</option>
-                        {contactLists.map((list) => (
-                          <option key={list.id} value={list.id}>
-                            {list.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    {selectedListId && listContacts.length > 0 && (
-                      <div className="companies-section">
-                        <div className="companies-header">
-                          <h4>Contacts in this list ({listContacts.length})</h4>
-                          <button
-                            onClick={() => setSelectedContacts(listContacts.map(c => c.id))}
-                            className="secondary-btn"
-                          >
-                            Select All
-                          </button>
-                        </div>
-
-                        <div className="companies-list">
-                          {listContacts.map((contact) => (
-                            <div key={contact.id} className="company-item">
-                              <input
-                                type="checkbox"
-                                id={`contact-${contact.id}`}
-                                checked={selectedContacts.includes(contact.id)}
-                                onChange={() => toggleContactSelection(contact.id)}
-                              />
-                              <label htmlFor={`contact-${contact.id}`}>
-                                <strong>{contact.name || contact.email}</strong>
-                                {contact.name && <span className="company-email"> • {contact.email}</span>}
-                                {contact.company && <div className="company-meta">{contact.company}</div>}
-                                {contact.notes && <div className="company-meta">{contact.notes}</div>}
-                              </label>
-                            </div>
-                          ))}
-                        </div>
-
-                        <div className="selection-summary">
-                          Selected: <strong>{selectedContacts.length}</strong> contacts
-                        </div>
-                      </div>
-                    )}
-
-                    {selectedListId && listContacts.length === 0 && (
-                      <div className="empty-state">
-                        <p>This contact list is empty. Add contacts to this list first.</p>
-                      </div>
-                    )}
-                  </>
                 )}
               </>
             )}
@@ -834,10 +568,7 @@ export default function CreateCampaign() {
                     </div>
 
                     <div className="preview-note">
-                      {audienceType === 'companies'
-                        ? `Each of the ${formData.selectedCompanies.length} selected companies will receive a unique, personalized version.`
-                        : `Each of the ${selectedContacts.length} selected contacts will receive a unique, personalized version.`
-                      }
+                      Each of the {selectedContacts.length} selected contacts will receive a unique, personalized version.
                     </div>
 
                     {!emailApproved && (
@@ -860,7 +591,7 @@ export default function CreateCampaign() {
             ) : (
               <>
                 <div className="preview-info">
-                  <p>Write your email manually. This email will be sent to all {audienceType === 'companies' ? formData.selectedCompanies.length : selectedContacts.length} selected {audienceType === 'companies' ? 'companies' : 'contacts'}.</p>
+                  <p>Write your email manually. This email will be sent to all {selectedContacts.length} selected contacts.</p>
                 </div>
 
                 <div className="manual-email-form">
@@ -965,12 +696,12 @@ export default function CreateCampaign() {
               <div className="review-section">
                 <h4>Recipients</h4>
                 <div className="review-item">
-                  <span>Audience Type:</span>
-                  <strong>{audienceType === 'companies' ? 'Lithuanian Companies' : 'Contact Lists'}</strong>
+                  <span>Source:</span>
+                  <strong>Contact List</strong>
                 </div>
                 <div className="review-item">
                   <span>Total Recipients:</span>
-                  <strong>{audienceType === 'companies' ? formData.selectedCompanies.length : selectedContacts.length}</strong>
+                  <strong>{selectedContacts.length}</strong>
                 </div>
               </div>
 
