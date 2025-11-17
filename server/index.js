@@ -460,7 +460,7 @@ app.post('/api/stripe/test-upgrade', async (req, res) => {
 // Get all companies with filtering
 app.get('/api/companies', async (req, res) => {
   try {
-    const { activity, minEmployees, maxEmployees, minRating, maxRating, search, website, offset = '0', limit = '100' } = req.query
+    const { activity, minEmployees, maxEmployees, minRating, maxRating, search, website, tags, offset = '0', limit = '100' } = req.query
 
     // Parse pagination params
     const offsetNum = parseInt(offset)
@@ -499,10 +499,19 @@ app.get('/api/companies', async (req, res) => {
       query = query.or(`company_name.ilike.%${search}%,company_code.ilike.%${search}%,email.ilike.%${search}%`)
     }
 
+    // Tags filter - PostgreSQL array contains
+    if (tags) {
+      const tagsArray = Array.isArray(tags) ? tags : tags.split(',').map(t => t.trim())
+      // Filter companies that have ANY of the selected tags
+      if (tagsArray.length > 0) {
+        query = query.overlaps('tags', tagsArray)
+      }
+    }
+
     // Website filter
     if (website === 'with') {
       // Has a valid website (not null, not empty, not "neturime" or similar placeholders)
-      const noWebsiteIndicators = ['neturime', 'nėra', 'n/a', 'na', 'none', 'no website', 'no', '-']
+      const noWebsiteIndicators = ['neturime', 'nėra', 'nera', 'n/a', 'na', 'none', 'no website', 'no', '-', 'www.neturime']
       query = query
         .not('website', 'is', null)
         .neq('website', '')
@@ -512,10 +521,10 @@ app.get('/api/companies', async (req, res) => {
         query = query.not('website', 'ilike', `%${indicator}%`)
       }
     } else if (website === 'without') {
-      // No valid website (null, empty, or placeholder)
-      const noWebsiteIndicators = ['neturime', 'nėra', 'n/a', 'na', 'none', 'no website', 'no', '-']
+      // No valid website (null, empty, or placeholder like "neturime")
+      const noWebsiteIndicators = ['neturime', 'nėra', 'nera', 'n/a', 'na', 'none', 'no website', 'no', '-', 'www.neturime']
 
-      // Build OR condition for no website (use % wildcards for ilike pattern matching)
+      // Build OR condition for no website
       const orConditions = [
         'website.is.null',
         'website.eq.',

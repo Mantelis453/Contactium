@@ -93,6 +93,7 @@ export default function Companies() {
         ...(maxRating && { maxRating }),
         ...(debouncedSearch && { search: debouncedSearch }),
         ...(websiteFilter !== 'all' && { website: websiteFilter }),
+        ...(selectedTags.length > 0 && { tags: selectedTags.join(',') }),
         offset: currentOffset.toString(),
         limit: limit.toString()
       })
@@ -314,9 +315,10 @@ ${details.employeeCount ? `👔 Employees: ~${details.employeeCount}` : ''}`
   // Check if website value indicates "no website"
   const hasValidWebsite = (website) => {
     if (!website) return false
-    const noWebsiteIndicators = ['neturime', 'nėra', 'n/a', 'na', 'none', 'no website', 'no', '-']
+    const noWebsiteIndicators = ['neturime', 'nėra', 'nera', 'n/a', 'na', 'none', 'no website', 'no', '-', 'www.neturime']
     const websiteLower = website.toLowerCase().trim()
-    return !noWebsiteIndicators.includes(websiteLower)
+    // Check if the website contains any of the no-website indicators
+    return !noWebsiteIndicators.some(indicator => websiteLower.includes(indicator))
   }
 
   const batchTagAllCompanies = async () => {
