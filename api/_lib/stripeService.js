@@ -67,15 +67,30 @@ export async function createCheckoutSession(userId, tier, email) {
       .single()
 
     let customerId = userSettings?.stripe_customer_id
+    let needsNewCustomer = false
 
-    if (!customerId) {
+    // Check if customer ID exists and is valid in Stripe
+    if (customerId) {
+      try {
+        // Try to retrieve the customer to verify it exists in current mode
+        await getStripe().customers.retrieve(customerId)
+      } catch (error) {
+        // Customer doesn't exist (e.g., test mode ID in live mode)
+        console.log(`Customer ${customerId} not found in current Stripe mode, creating new customer`)
+        needsNewCustomer = true
+      }
+    } else {
+      needsNewCustomer = true
+    }
+
+    if (needsNewCustomer) {
       const customer = await getStripe().customers.create({
         email,
         metadata: { userId }
       })
       customerId = customer.id
 
-      // Save customer ID to database
+      // Save new customer ID to database
       await getSupabase()
         .from('user_settings')
         .upsert({
@@ -123,8 +138,17 @@ export async function createPortalSession(userId) {
       throw new Error('No Stripe customer found')
     }
 
+    let customerId = userSettings.stripe_customer_id
+
+    // Verify customer exists in Stripe (handles test mode to live mode migration)
+    try {
+      await getStripe().customers.retrieve(customerId)
+    } catch (error) {
+      throw new Error('Stripe customer not found in current mode. Please complete a new checkout to update your account.')
+    }
+
     const session = await getStripe().billingPortal.sessions.create({
-      customer: userSettings.stripe_customer_id,
+      customer: customerId,
       return_url: `${process.env.VITE_APP_URL}/settings`
     })
 
