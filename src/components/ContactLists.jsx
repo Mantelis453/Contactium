@@ -2,16 +2,38 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
+import { useSubscription } from '../contexts/SubscriptionContext'
 import '../styles/ContactLists.css'
 
 export default function ContactLists() {
   const { user } = useAuth()
   const navigate = useNavigate()
+  const { subscription } = useSubscription()
   const [lists, setLists] = useState([])
   const [loading, setLoading] = useState(true)
   const [showCreateModal, setShowCreateModal] = useState(false)
+  const [showUpgradePrompt, setShowUpgradePrompt] = useState(false)
   const [newList, setNewList] = useState({ name: '', description: '' })
   const [creating, setCreating] = useState(false)
+
+  // Check if user is on free tier
+  const isFree = subscription?.tier === 'free'
+
+  // Check if user has created a list this month
+  const hasCreatedListThisMonth = () => {
+    if (!isFree) return false
+
+    const now = new Date()
+    const currentMonth = now.getMonth()
+    const currentYear = now.getFullYear()
+
+    return lists.some(list => {
+      const listDate = new Date(list.created_at)
+      return listDate.getMonth() === currentMonth && listDate.getFullYear() === currentYear
+    })
+  }
+
+  const canCreateList = !isFree || !hasCreatedListThisMonth()
 
   useEffect(() => {
     if (user?.id) {
@@ -57,10 +79,19 @@ export default function ContactLists() {
   }
 
   const handleNewListClick = () => {
+    if (!canCreateList) {
+      setShowUpgradePrompt(true)
+      return
+    }
     setShowCreateModal(true)
   }
 
   const createList = async () => {
+    if (!canCreateList) {
+      alert('Free tier users can only create 1 contact list per month. Please upgrade to create unlimited lists.')
+      return
+    }
+
     if (!newList.name.trim()) {
       alert('Please enter a list name')
       return
@@ -123,10 +154,27 @@ export default function ContactLists() {
     <div className="page-container">
       <div className="page-header">
         <h2 className="page-title">Contact Lists</h2>
-        <button onClick={handleNewListClick} className="primary-btn">
-          + New List
+        <button
+          onClick={handleNewListClick}
+          className="primary-btn"
+          title={!canCreateList ? 'Free tier: 1 list per month. Upgrade for unlimited lists.' : ''}
+        >
+          {canCreateList ? '+ New List' : '🔒 Upgrade for More Lists'}
         </button>
       </div>
+
+      {isFree && hasCreatedListThisMonth() && (
+        <div className="info-banner" style={{
+          background: '#fff3cd',
+          border: '1px solid #ffc107',
+          borderRadius: '8px',
+          padding: '12px 16px',
+          marginBottom: '24px',
+          color: '#856404'
+        }}>
+          📋 Free tier: You've created your contact list for this month. Upgrade to Starter or Professional for unlimited contact lists.
+        </div>
+      )}
 
       {lists.length === 0 ? (
         <div className="empty-state">
@@ -228,6 +276,54 @@ export default function ContactLists() {
                 className="primary-btn"
               >
                 {creating ? 'Creating...' : 'Create List'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showUpgradePrompt && (
+        <div className="modal-overlay" onClick={() => setShowUpgradePrompt(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>🚀 Contact List Limit Reached</h3>
+              <button
+                onClick={() => setShowUpgradePrompt(false)}
+                className="modal-close"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="modal-body">
+              <p style={{ marginBottom: '1rem', fontSize: '15px', color: '#64748b' }}>
+                Free tier users can create <strong>1 contact list per month</strong>.
+              </p>
+              <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '8px', marginBottom: '1rem' }}>
+                <p style={{ margin: '0 0 12px 0', fontWeight: '600', color: '#1e293b' }}>
+                  Upgrade to get:
+                </p>
+                <ul style={{ margin: 0, paddingLeft: '20px', color: '#475569' }}>
+                  <li>Unlimited contact lists</li>
+                  <li>Access to Companies database</li>
+                  <li>Bulk import from Companies page</li>
+                  <li>Up to 500 emails/month (Starter) or 2,500/month (Professional)</li>
+                </ul>
+              </div>
+            </div>
+
+            <div className="modal-footer">
+              <button
+                onClick={() => setShowUpgradePrompt(false)}
+                className="secondary-btn"
+              >
+                Maybe Later
+              </button>
+              <button
+                onClick={() => navigate('/subscription')}
+                className="primary-btn"
+              >
+                View Plans & Pricing
               </button>
             </div>
           </div>
