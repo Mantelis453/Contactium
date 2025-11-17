@@ -2,24 +2,18 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
-import { useSubscription } from '../contexts/SubscriptionContext'
 import '../styles/ContactListDetail.css'
 
 export default function ContactListDetail() {
   const { listId } = useParams()
   const navigate = useNavigate()
   const { user } = useAuth()
-  const { subscription } = useSubscription()
   const [list, setList] = useState(null)
   const [contacts, setContacts] = useState([])
   const [loading, setLoading] = useState(true)
   const [showAddModal, setShowAddModal] = useState(false)
-  const [showUpgradePrompt, setShowUpgradePrompt] = useState(false)
   const [newContact, setNewContact] = useState({ email: '', name: '', company: '', notes: '' })
   const [adding, setAdding] = useState(false)
-
-  // Check if user has access to contact lists (Starter or Professional plan)
-  const hasAccess = subscription?.tier === 'starter' || subscription?.tier === 'professional'
 
   useEffect(() => {
     if (user?.id) {
@@ -61,19 +55,10 @@ export default function ContactListDetail() {
   }
 
   const handleAddContactClick = () => {
-    if (!hasAccess) {
-      setShowUpgradePrompt(true)
-      return
-    }
     setShowAddModal(true)
   }
 
   const addContact = async () => {
-    if (!hasAccess) {
-      alert('Please upgrade to Starter or Professional plan to add contacts')
-      return
-    }
-
     if (!newContact.email.trim()) {
       alert('Please enter an email address')
       return
@@ -159,7 +144,7 @@ export default function ContactListDetail() {
           {list.description && <p className="list-subtitle">{list.description}</p>}
         </div>
         <button onClick={handleAddContactClick} className="primary-btn">
-          {hasAccess ? '+ Add Contact' : '🔒 Upgrade to Add Contacts'}
+          + Add Contact
         </button>
       </div>
 
@@ -286,54 +271,6 @@ export default function ContactListDetail() {
                 className="primary-btn"
               >
                 {adding ? 'Adding...' : 'Add Contact'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showUpgradePrompt && (
-        <div className="modal-overlay" onClick={() => setShowUpgradePrompt(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3>🚀 Upgrade Required</h3>
-              <button
-                onClick={() => setShowUpgradePrompt(false)}
-                className="modal-close"
-              >
-                ×
-              </button>
-            </div>
-
-            <div className="modal-body">
-              <p style={{ marginBottom: '1rem', fontSize: '15px', color: '#64748b' }}>
-                Contact Lists is a premium feature available on Starter and Professional plans.
-              </p>
-              <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '8px', marginBottom: '1rem' }}>
-                <p style={{ margin: '0 0 12px 0', fontWeight: '600', color: '#1e293b' }}>
-                  With Contact Lists you can:
-                </p>
-                <ul style={{ margin: 0, paddingLeft: '20px', color: '#475569' }}>
-                  <li>Organize your contacts into custom lists</li>
-                  <li>Create targeted email campaigns</li>
-                  <li>Import and manage contacts easily</li>
-                  <li>Track engagement per list</li>
-                </ul>
-              </div>
-            </div>
-
-            <div className="modal-footer">
-              <button
-                onClick={() => setShowUpgradePrompt(false)}
-                className="secondary-btn"
-              >
-                Maybe Later
-              </button>
-              <button
-                onClick={() => navigate('/settings')}
-                className="primary-btn"
-              >
-                View Plans & Pricing
               </button>
             </div>
           </div>
