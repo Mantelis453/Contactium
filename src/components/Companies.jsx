@@ -332,34 +332,21 @@ ${details.employeeCount ? `👔 Employees: ~${details.employeeCount}` : ''}`
 
   // Check if website value indicates "no website"
   const hasValidWebsite = (website) => {
-    if (!website || website.trim() === '') {
-      console.log('[hasValidWebsite] Empty website:', website)
-      return false
-    }
+    if (!website || website.trim() === '') return false
 
     const websiteLower = website.toLowerCase().trim()
 
     // Exact matches for short placeholders
     const exactMatches = ['n/a', 'na', 'no', '-', 'nėra', 'nera']
-    if (exactMatches.includes(websiteLower)) {
-      console.log('[hasValidWebsite] Exact match placeholder:', website)
-      return false
-    }
+    if (exactMatches.includes(websiteLower)) return false
 
     // Check if the website contains Lithuanian "no website" indicators
     const containsIndicators = ['neturime', 'none', 'no website', 'www.neturime']
-    if (containsIndicators.some(indicator => websiteLower.includes(indicator))) {
-      console.log('[hasValidWebsite] Contains placeholder indicator:', website)
-      return false
-    }
+    if (containsIndicators.some(indicator => websiteLower.includes(indicator))) return false
 
     // Must contain a dot (valid domain)
-    if (!websiteLower.includes('.')) {
-      console.log('[hasValidWebsite] No dot in domain:', website)
-      return false
-    }
+    if (!websiteLower.includes('.')) return false
 
-    console.log('[hasValidWebsite] Valid website:', website)
     return true
   }
 
@@ -531,7 +518,24 @@ ${details.employeeCount ? `👔 Employees: ~${details.employeeCount}` : ''}`
     try {
       setAddingToList(true)
 
-      const selectedCompanyObjects = companies.filter(c => selectedCompanies.has(c.id))
+      // Get all selected company IDs
+      const selectedIds = Array.from(selectedCompanies)
+
+      // If we have more selected than currently loaded, fetch all selected companies
+      let selectedCompanyObjects
+      if (selectedIds.length > companies.length) {
+        // Fetch all selected companies from the database
+        const { data: allSelectedCompanies, error: fetchError } = await supabase
+          .from('companies')
+          .select('id, company_name, email, extracted_emails, phone, website')
+          .in('id', selectedIds)
+
+        if (fetchError) throw fetchError
+        selectedCompanyObjects = allSelectedCompanies
+      } else {
+        // Use already loaded companies
+        selectedCompanyObjects = companies.filter(c => selectedCompanies.has(c.id))
+      }
 
       // Prepare contacts from selected companies
       const contacts = selectedCompanyObjects.map(company => ({
@@ -548,14 +552,21 @@ ${details.employeeCount ? `👔 Employees: ~${details.employeeCount}` : ''}`
         return
       }
 
-      const { data, error } = await supabase
-        .from('contacts')
-        .insert(contacts)
-        .select()
+      // Insert in batches of 1000 to avoid payload limits
+      const batchSize = 1000
+      let totalAdded = 0
 
-      if (error) throw error
+      for (let i = 0; i < contacts.length; i += batchSize) {
+        const batch = contacts.slice(i, i + batchSize)
+        const { error } = await supabase
+          .from('contacts')
+          .insert(batch)
 
-      alert(`Successfully added ${contacts.length} companies to the contact list!`)
+        if (error) throw error
+        totalAdded += batch.length
+      }
+
+      alert(`Successfully added ${totalAdded} companies to the contact list!`)
       setShowAddToListModal(false)
       setSelectedCompanies(new Set())
       setSelectedListId('')
