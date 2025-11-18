@@ -186,8 +186,10 @@ Deno.serve(async (req) => {
 
     const resendApiKey = Deno.env.get('RESEND_API_KEY')
     if (!resendApiKey) {
-      throw new Error('RESEND_API_KEY environment variable not set')
+      console.error('RESEND_API_KEY not set in environment variables')
+      throw new Error('RESEND_API_KEY environment variable not set. Please add it in Supabase Edge Functions settings.')
     }
+    console.log('Resend API key found, proceeding with email sending...')
 
     for (const email of emailsToSend) {
       try {
@@ -207,7 +209,7 @@ Deno.serve(async (req) => {
 
         if (response.ok) {
           // Email sent successfully
-          await supabase
+          const { error: updateError } = await supabase
             .from('campaign_recipients')
             .update({
               status: 'sent',
@@ -219,20 +221,31 @@ Deno.serve(async (req) => {
             })
             .eq('id', email.recipientId)
 
+          if (updateError) {
+            console.error(`Failed to update recipient ${email.recipientId} to sent:`, updateError)
+          }
+
           sentCount++
           console.log(`✓ Sent email to ${email.companyName}`)
         } else {
-          throw new Error(`Resend API error: ${response.statusText}`)
+          const errorText = await response.text()
+          console.error(`Resend API error for ${email.companyName}:`, response.status, errorText)
+          throw new Error(`Resend API error: ${response.statusText} - ${errorText}`)
         }
       } catch (error) {
         // Email failed to send
-        await supabase
+        console.error(`✗ Failed to send email to ${email.companyName}:`, error.message)
+
+        const { error: updateError } = await supabase
           .from('campaign_recipients')
           .update({ status: 'failed' })
           .eq('id', email.recipientId)
 
+        if (updateError) {
+          console.error(`Failed to update recipient ${email.recipientId} to failed:`, updateError)
+        }
+
         failedCount++
-        console.error(`✗ Failed to send email to ${email.companyName}:`, error.message)
       }
     }
 
