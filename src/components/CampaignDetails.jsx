@@ -13,12 +13,28 @@ export default function CampaignDetails() {
   const [recipients, setRecipients] = useState([])
   const [loading, setLoading] = useState(true)
   const [sendingCampaign, setSendingCampaign] = useState(false)
+  const [refreshInterval, setRefreshInterval] = useState(null)
 
   useEffect(() => {
     if (user?.id && id) {
       loadCampaignDetails()
     }
   }, [user, id])
+
+  // Poll for updates when campaign is running
+  useEffect(() => {
+    if (campaign?.status === 'running') {
+      // Refresh every 2 seconds while campaign is running
+      const interval = setInterval(() => {
+        loadCampaignDetails()
+      }, 2000)
+      setRefreshInterval(interval)
+      return () => clearInterval(interval)
+    } else if (refreshInterval) {
+      clearInterval(refreshInterval)
+      setRefreshInterval(null)
+    }
+  }, [campaign?.status])
 
   const loadCampaignDetails = async () => {
     try {
@@ -33,7 +49,7 @@ export default function CampaignDetails() {
       if (campaignError) throw campaignError
       setCampaign(campaignData)
 
-      // Load recipients with company details
+      // Load recipients (supports both companies and contacts)
       const { data: recipientsData, error: recipientsError } = await supabase
         .from('campaign_recipients')
         .select(`
@@ -41,19 +57,59 @@ export default function CampaignDetails() {
           status,
           sent_at,
           personalized_email,
-          companies (
-            id,
-            company_name,
-            email,
-            activity,
-            employees,
-            address
-          )
+          company_id,
+          contact_id,
+          recipient_email,
+          recipient_name
         `)
         .eq('campaign_id', id)
 
       if (recipientsError) throw recipientsError
-      setRecipients(recipientsData || [])
+
+      // Fetch company details for company-based recipients
+      const companyIds = recipientsData.filter(r => r.company_id).map(r => r.company_id)
+      let companiesMap = new Map()
+
+      if (companyIds.length > 0) {
+        const { data: companies } = await supabase
+          .from('companies')
+          .select('id, company_name, email, activity, employees, address')
+          .in('id', companyIds)
+
+        if (companies) {
+          companies.forEach(c => companiesMap.set(c.id, c))
+        }
+      }
+
+      // Enrich recipients with company data or use contact data
+      const enrichedRecipients = recipientsData.map(recipient => {
+        if (recipient.company_id) {
+          return {
+            ...recipient,
+            companies: companiesMap.get(recipient.company_id) || {
+              company_name: 'Unknown',
+              email: recipient.recipient_email || '',
+              activity: null,
+              employees: null,
+              address: null
+            }
+          }
+        } else {
+          // Contact-based recipient
+          return {
+            ...recipient,
+            companies: {
+              company_name: recipient.recipient_name || recipient.recipient_email,
+              email: recipient.recipient_email,
+              activity: null,
+              employees: null,
+              address: null
+            }
+          }
+        }
+      })
+
+      setRecipients(enrichedRecipients || [])
     } catch (error) {
       console.error('Error loading campaign details:', error)
       alert('Failed to load campaign details')
@@ -67,19 +123,29 @@ export default function CampaignDetails() {
 
     setSendingCampaign(true)
     try {
-      const result = await sendCampaign(campaign.id, user.id)
+      // Start sending in background - don't wait for completion
+      sendCampaign(campaign.id, user.id)
+        .then(result => {
+          console.log('Campaign send completed:', result)
+          // Final reload after completion
+          loadCampaignDetails()
+          alert(`Campaign sent! ${result.sent} emails sent, ${result.failed} failed.`)
+        })
+        .catch(error => {
+          console.error('Error sending campaign:', error)
+          alert(`Failed to send campaign: ${error.message}`)
+          loadCampaignDetails()
+        })
+        .finally(() => {
+          setSendingCampaign(false)
+        })
 
-      // Wait a moment for database to update
-      await new Promise(resolve => setTimeout(resolve, 1000))
-
-      // Reload campaign details to show updated stats
+      // Immediately reload to show "running" status
+      await new Promise(resolve => setTimeout(resolve, 500))
       await loadCampaignDetails()
-
-      alert(`Campaign sent! ${result.sent} emails sent, ${result.failed} failed.`)
     } catch (error) {
-      console.error('Error sending campaign:', error)
-      alert(`Failed to send campaign: ${error.message}`)
-    } finally {
+      console.error('Error starting campaign:', error)
+      alert(`Failed to start campaign: ${error.message}`)
       setSendingCampaign(false)
     }
   }
@@ -212,7 +278,49 @@ export default function CampaignDetails() {
 
       {/* Stats */}
       <div className="details-section">
-        <h3>Campaign Statistics</h3>
+        <h3>Campaign Statistics {campaign.status === 'running' && '(Updating live...)'}</h3>
+
+        {/* Progress Bar for Running Campaigns */}
+        {campaign.status === 'running' && stats.total > 0 && (
+          <div style={{ marginBottom: '1rem' }}>
+            <div style={{
+              width: '100%',
+              height: '30px',
+              backgroundColor: '#e9ecef',
+              borderRadius: '5px',
+              overflow: 'hidden',
+              position: 'relative'
+            }}>
+              <div style={{
+                width: `${(stats.sent / stats.total) * 100}%`,
+                height: '100%',
+                backgroundColor: '#198754',
+                transition: 'width 0.3s ease',
+                float: 'left'
+              }}></div>
+              <div style={{
+                width: `${(stats.failed / stats.total) * 100}%`,
+                height: '100%',
+                backgroundColor: '#dc3545',
+                transition: 'width 0.3s ease',
+                float: 'left'
+              }}></div>
+              <div style={{
+                position: 'absolute',
+                top: '50%',
+                left: '50%',
+                transform: 'translate(-50%, -50%)',
+                fontWeight: 'bold',
+                fontSize: '14px',
+                color: '#000',
+                textShadow: '0 0 3px #fff'
+              }}>
+                {stats.sent + stats.failed} / {stats.total} processed
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="stats-row">
           <div className="stat-box">
             <div className="stat-value">{stats.total}</div>
@@ -220,15 +328,15 @@ export default function CampaignDetails() {
           </div>
           <div className="stat-box success">
             <div className="stat-value">{stats.sent}</div>
-            <div className="stat-label">Sent</div>
+            <div className="stat-label">✓ Sent</div>
           </div>
           <div className="stat-box pending">
             <div className="stat-value">{stats.pending}</div>
-            <div className="stat-label">Pending</div>
+            <div className="stat-label">⏳ Pending</div>
           </div>
           <div className="stat-box danger">
             <div className="stat-value">{stats.failed}</div>
-            <div className="stat-label">Failed</div>
+            <div className="stat-label">✗ Failed</div>
           </div>
         </div>
       </div>
