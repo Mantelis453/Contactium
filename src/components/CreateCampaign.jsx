@@ -147,7 +147,10 @@ export default function CreateCampaign() {
   const saveCampaign = async () => {
     setLoading(true)
     try {
+      console.log('Creating campaign...', { formData, selectedContacts: selectedContacts.length })
+
       const emailData = emailMode === 'manual' ? manualEmail : referenceEmail
+      console.log('Email data:', emailData)
 
       const { data: campaign, error: campaignError } = await supabase
         .from('campaigns')
@@ -169,7 +172,12 @@ export default function CreateCampaign() {
         .select()
         .single()
 
-      if (campaignError) throw campaignError
+      if (campaignError) {
+        console.error('Campaign creation error:', campaignError)
+        throw campaignError
+      }
+
+      console.log('Campaign created:', campaign)
 
       // Create recipients from selected contacts
       const recipients = selectedContacts.map(contactId => {
@@ -184,17 +192,26 @@ export default function CreateCampaign() {
         }
       })
 
+      console.log('Creating recipients:', recipients.length)
+
       const { error: recipientsError} = await supabase
         .from('campaign_recipients')
         .insert(recipients)
 
-      if (recipientsError) throw recipientsError
+      if (recipientsError) {
+        console.error('Recipients creation error:', recipientsError)
+        throw recipientsError
+      }
+
+      console.log('Recipients created successfully')
 
       if (!formData.sendDate) {
         // Redirect to campaign details to watch live progress
+        console.log('Redirecting to campaign details:', campaign.id)
         alert(`Campaign created! Redirecting to campaign details where you can start sending and watch live progress.`)
         navigate(`/campaigns/${campaign.id}`)
       } else {
+        console.log('Redirecting to campaigns list')
         alert(`Campaign scheduled successfully for ${new Date(formData.sendDate).toLocaleString()}!`)
         navigate('/campaigns')
       }
