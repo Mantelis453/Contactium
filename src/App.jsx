@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { Analytics } from '@vercel/analytics/react'
 import { useAuth } from './hooks/useAuth'
 import { SubscriptionProvider } from './contexts/SubscriptionContext'
 import LandingPage from './components/LandingPage'
@@ -40,6 +41,7 @@ function App() {
           <Route path="/cookies" element={<CookiePolicy />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        <Analytics />
       </BrowserRouter>
     )
   }
@@ -62,6 +64,7 @@ function App() {
           </Routes>
         </Layout>
       </SubscriptionProvider>
+      <Analytics />
     </BrowserRouter>
   )
 }
