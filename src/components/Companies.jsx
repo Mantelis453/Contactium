@@ -23,6 +23,7 @@ export default function Companies() {
 
   // Selection state
   const [selectedCompanies, setSelectedCompanies] = useState(new Set())
+  const [selectedCompanyData, setSelectedCompanyData] = useState(new Map()) // Store full company objects
   const [contactLists, setContactLists] = useState([])
   const [showAddToListModal, setShowAddToListModal] = useState(false)
   const [selectedListId, setSelectedListId] = useState('')
@@ -436,19 +437,33 @@ ${details.employeeCount ? `👔 Employees: ~${details.employeeCount}` : ''}`
 
   const toggleCompanySelection = (companyId) => {
     const newSelection = new Set(selectedCompanies)
+    const newData = new Map(selectedCompanyData)
+
     if (newSelection.has(companyId)) {
       newSelection.delete(companyId)
+      newData.delete(companyId)
     } else {
       newSelection.add(companyId)
+      // Store the company data
+      const company = companies.find(c => c.id === companyId)
+      if (company) {
+        newData.set(companyId, company)
+      }
     }
     setSelectedCompanies(newSelection)
+    setSelectedCompanyData(newData)
   }
 
   const toggleSelectAll = () => {
     if (selectedCompanies.size === companies.length) {
       setSelectedCompanies(new Set())
+      setSelectedCompanyData(new Map())
     } else {
       setSelectedCompanies(new Set(companies.map(c => c.id)))
+      // Store all company data
+      const dataMap = new Map()
+      companies.forEach(c => dataMap.set(c.id, c))
+      setSelectedCompanyData(dataMap)
     }
   }
 
@@ -486,8 +501,15 @@ ${details.employeeCount ? `👔 Employees: ~${details.employeeCount}` : ''}`
       const responseData = await response.json()
 
       if (response.ok) {
-        const allCompanyIds = responseData.companies.map(c => c.id)
+        const allCompanies = responseData.companies
+        const allCompanyIds = allCompanies.map(c => c.id)
+
+        // Store both IDs and full company data
         setSelectedCompanies(new Set(allCompanyIds))
+        const dataMap = new Map()
+        allCompanies.forEach(c => dataMap.set(c.id, c))
+        setSelectedCompanyData(dataMap)
+
         alert(`Selected ${allCompanyIds.length} companies`)
       } else {
         console.error('Error loading all companies:', responseData.error)
@@ -520,53 +542,14 @@ ${details.employeeCount ? `👔 Employees: ~${details.employeeCount}` : ''}`
 
       // Get all selected company IDs
       const selectedIds = Array.from(selectedCompanies)
-      console.log('Selected IDs sample (first 5):', selectedIds.slice(0, 5))
+      console.log(`Processing ${selectedIds.length} selected companies...`)
 
-      // If we have more selected than currently loaded, fetch all selected companies in batches
-      let selectedCompanyObjects
-      if (selectedIds.length > companies.length) {
-        console.log(`Fetching ${selectedIds.length} selected companies...`)
+      // Use stored company data from selectedCompanyData Map
+      const selectedCompanyObjects = selectedIds
+        .map(id => selectedCompanyData.get(id))
+        .filter(company => company) // Filter out any undefined values
 
-        // Fetch in batches of 100 IDs to avoid URL length limits (Supabase has strict limits)
-        const batchSize = 100
-        const allCompanies = []
-        const totalBatches = Math.ceil(selectedIds.length / batchSize)
-
-        for (let i = 0; i < selectedIds.length; i += batchSize) {
-          const batchNum = Math.floor(i / batchSize) + 1
-          console.log(`Fetching batch ${batchNum}/${totalBatches} (${i}-${Math.min(i + batchSize, selectedIds.length)})...`)
-
-          const batchIds = selectedIds.slice(i, i + batchSize)
-          console.log('Batch IDs sample:', batchIds.slice(0, 3))
-
-          const { data: batchCompanies, error: fetchError } = await supabase
-            .from('companies')
-            .select('id, company_name, email, extracted_emails, phone, website')
-            .in('id', batchIds)
-
-          console.log(`Batch ${batchNum} returned ${batchCompanies?.length || 0} companies`)
-
-          if (fetchError) {
-            console.error('Batch fetch error:', {
-              error: fetchError,
-              batchSize: batchIds.length,
-              batchNum,
-              totalBatches
-            })
-            throw new Error(`Failed to fetch companies batch ${batchNum}: ${fetchError.message || 'Unknown error'}`)
-          }
-
-          if (batchCompanies && batchCompanies.length > 0) {
-            allCompanies.push(...batchCompanies)
-          }
-        }
-
-        console.log(`Fetched ${allCompanies.length} companies total`)
-        selectedCompanyObjects = allCompanies
-      } else {
-        // Use already loaded companies
-        selectedCompanyObjects = companies.filter(c => selectedCompanies.has(c.id))
-      }
+      console.log(`Found ${selectedCompanyObjects.length} companies with data`)
 
       // Prepare contacts from selected companies
       const contacts = selectedCompanyObjects.map(company => ({
@@ -609,6 +592,7 @@ ${details.employeeCount ? `👔 Employees: ~${details.employeeCount}` : ''}`
       alert(`Successfully added ${totalAdded} companies to the contact list!`)
       setShowAddToListModal(false)
       setSelectedCompanies(new Set())
+      setSelectedCompanyData(new Map())
       setSelectedListId('')
     } catch (error) {
       console.error('Error adding companies to list:', error)
