@@ -48,14 +48,18 @@ CREATE TABLE IF NOT EXISTS company_tags (
 ALTER TABLE company_tags ENABLE ROW LEVEL SECURITY;
 
 -- Create RLS policies - tags are globally visible to all authenticated users
+-- Use DROP POLICY IF EXISTS to avoid errors if policies already exist
+DROP POLICY IF EXISTS "Anyone can view tags" ON company_tags;
 CREATE POLICY "Anyone can view tags"
   ON company_tags FOR SELECT
   USING (true);
 
+DROP POLICY IF EXISTS "Authenticated users can insert tags" ON company_tags;
 CREATE POLICY "Authenticated users can insert tags"
   ON company_tags FOR INSERT
   WITH CHECK (auth.role() = 'authenticated');
 
+DROP POLICY IF EXISTS "Authenticated users can update tags" ON company_tags;
 CREATE POLICY "Authenticated users can update tags"
   ON company_tags FOR UPDATE
   USING (auth.role() = 'authenticated');
