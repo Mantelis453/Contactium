@@ -332,21 +332,34 @@ ${details.employeeCount ? `👔 Employees: ~${details.employeeCount}` : ''}`
 
   // Check if website value indicates "no website"
   const hasValidWebsite = (website) => {
-    if (!website || website.trim() === '') return false
+    if (!website || website.trim() === '') {
+      console.log('[hasValidWebsite] Empty website:', website)
+      return false
+    }
 
     const websiteLower = website.toLowerCase().trim()
 
     // Exact matches for short placeholders
     const exactMatches = ['n/a', 'na', 'no', '-', 'nėra', 'nera']
-    if (exactMatches.includes(websiteLower)) return false
+    if (exactMatches.includes(websiteLower)) {
+      console.log('[hasValidWebsite] Exact match placeholder:', website)
+      return false
+    }
 
     // Check if the website contains Lithuanian "no website" indicators
     const containsIndicators = ['neturime', 'none', 'no website', 'www.neturime']
-    if (containsIndicators.some(indicator => websiteLower.includes(indicator))) return false
+    if (containsIndicators.some(indicator => websiteLower.includes(indicator))) {
+      console.log('[hasValidWebsite] Contains placeholder indicator:', website)
+      return false
+    }
 
     // Must contain a dot (valid domain)
-    if (!websiteLower.includes('.')) return false
+    if (!websiteLower.includes('.')) {
+      console.log('[hasValidWebsite] No dot in domain:', website)
+      return false
+    }
 
+    console.log('[hasValidWebsite] Valid website:', website)
     return true
   }
 
@@ -452,6 +465,55 @@ ${details.employeeCount ? `👔 Employees: ~${details.employeeCount}` : ''}`
     }
   }
 
+  const selectAllFiltered = async () => {
+    if (!confirm(`This will select all ${total} companies that match your current filters. Continue?`)) {
+      return
+    }
+
+    try {
+      setLoading(true)
+
+      const params = new URLSearchParams({
+        ...(activityFilter !== 'all' && { activity: activityFilter }),
+        ...(minEmployees && { minEmployees }),
+        ...(maxEmployees && { maxEmployees }),
+        ...(minRating && { minRating }),
+        ...(maxRating && { maxRating }),
+        ...(debouncedSearch && { search: debouncedSearch }),
+        ...(websiteFilter !== 'all' && { website: websiteFilter }),
+        ...(selectedTags.length > 0 && { tags: selectedTags.join(',') }),
+        offset: '0',
+        limit: total.toString() // Get all companies
+      })
+
+      // Get auth session and anon key for Supabase Edge Function auth
+      const { data: { session } } = await supabase.auth.getSession()
+      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+
+      const response = await fetch(`${API_URL}/companies?${params}`, {
+        headers: {
+          'Authorization': `Bearer ${session?.access_token || anonKey}`,
+          'apikey': anonKey
+        }
+      })
+      const responseData = await response.json()
+
+      if (response.ok) {
+        const allCompanyIds = responseData.companies.map(c => c.id)
+        setSelectedCompanies(new Set(allCompanyIds))
+        alert(`Selected ${allCompanyIds.length} companies`)
+      } else {
+        console.error('Error loading all companies:', responseData.error)
+        alert('Failed to load all companies')
+      }
+    } catch (error) {
+      console.error('Error selecting all filtered companies:', error)
+      alert('Failed to select all companies')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const handleAddToList = () => {
     if (selectedCompanies.size === 0) {
       alert('Please select at least one company')
@@ -554,6 +616,15 @@ ${details.employeeCount ? `👔 Employees: ~${details.employeeCount}` : ''}`
               title="Add selected companies to a contact list"
             >
               📋 Add {selectedCompanies.size} to List
+            </button>
+          )}
+          {total > 100 && (
+            <button
+              onClick={selectAllFiltered}
+              className="secondary-btn"
+              title={`Select all ${total} companies matching current filters`}
+            >
+              ✓ Select All {total}
             </button>
           )}
           <button
