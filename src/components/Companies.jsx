@@ -526,30 +526,38 @@ ${details.employeeCount ? `👔 Employees: ~${details.employeeCount}` : ''}`
       if (selectedIds.length > companies.length) {
         console.log(`Fetching ${selectedIds.length} selected companies...`)
 
-        // Fetch in batches of 1000 IDs to avoid URL length limits
-        const batchSize = 1000
+        // Fetch in batches of 100 IDs to avoid URL length limits (Supabase has strict limits)
+        const batchSize = 100
         const allCompanies = []
         const totalBatches = Math.ceil(selectedIds.length / batchSize)
 
         for (let i = 0; i < selectedIds.length; i += batchSize) {
           const batchNum = Math.floor(i / batchSize) + 1
-          console.log(`Fetching batch ${batchNum}/${totalBatches}...`)
+          console.log(`Fetching batch ${batchNum}/${totalBatches} (${i}-${Math.min(i + batchSize, selectedIds.length)})...`)
 
           const batchIds = selectedIds.slice(i, i + batchSize)
+
           const { data: batchCompanies, error: fetchError } = await supabase
             .from('companies')
             .select('id, company_name, email, extracted_emails, phone, website')
             .in('id', batchIds)
 
           if (fetchError) {
-            console.error('Batch fetch error:', fetchError)
-            throw new Error(`Failed to fetch companies: ${fetchError.message}`)
+            console.error('Batch fetch error:', {
+              error: fetchError,
+              batchSize: batchIds.length,
+              batchNum,
+              totalBatches
+            })
+            throw new Error(`Failed to fetch companies batch ${batchNum}: ${fetchError.message || 'Unknown error'}`)
           }
 
-          allCompanies.push(...batchCompanies)
+          if (batchCompanies) {
+            allCompanies.push(...batchCompanies)
+          }
         }
 
-        console.log(`Fetched ${allCompanies.length} companies`)
+        console.log(`Fetched ${allCompanies.length} companies total`)
         selectedCompanyObjects = allCompanies
       } else {
         // Use already loaded companies
