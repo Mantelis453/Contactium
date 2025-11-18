@@ -44,21 +44,16 @@ export async function sendCampaign(campaignId, userId) {
       // Continue anyway - this is not critical
     }
 
-    // 4. Get all pending recipients with company details
+    // 4. Get all pending recipients (supports both companies and contacts)
     const { data: recipients, error: recipientsError } = await supabase
       .from('campaign_recipients')
       .select(`
         id,
         company_id,
-        status,
-        companies (
-          id,
-          company_name,
-          email,
-          activity,
-          employees,
-          address
-        )
+        contact_id,
+        recipient_email,
+        recipient_name,
+        status
       `)
       .eq('campaign_id', campaignId)
       .eq('status', 'pending')
@@ -86,12 +81,61 @@ export async function sendCampaign(campaignId, userId) {
       }
     }
 
+    // 4b. Fetch company details for company-based recipients (if any)
+    const companyIds = recipients.filter(r => r.company_id).map(r => r.company_id)
+    let companiesMap = new Map()
+
+    if (companyIds.length > 0) {
+      const { data: companies, error: companiesError } = await supabase
+        .from('companies')
+        .select('id, company_name, email, activity, employees, address')
+        .in('id', companyIds)
+
+      if (companiesError) {
+        console.error('Error fetching companies:', companiesError)
+      } else {
+        companies.forEach(c => companiesMap.set(c.id, c))
+      }
+    }
+
+    // Enrich recipients with company data or use contact data
+    const enrichedRecipients = recipients.map(recipient => {
+      if (recipient.company_id) {
+        // Company-based recipient
+        const company = companiesMap.get(recipient.company_id)
+        return {
+          ...recipient,
+          companies: company || {
+            id: recipient.company_id,
+            company_name: 'Unknown Company',
+            email: recipient.recipient_email || '',
+            activity: null,
+            employees: null,
+            address: null
+          }
+        }
+      } else {
+        // Contact-based recipient - create a company-like object for compatibility
+        return {
+          ...recipient,
+          companies: {
+            id: recipient.contact_id,
+            company_name: recipient.recipient_name || recipient.recipient_email,
+            email: recipient.recipient_email,
+            activity: null,
+            employees: null,
+            address: null
+          }
+        }
+      }
+    })
+
     // 5. Generate personalized emails for each recipient
     console.log('Generating personalized emails...')
     const emailsToSend = []
     const failedGenerations = []
 
-    for (const recipient of recipients) {
+    for (const recipient of enrichedRecipients) {
       try {
         // Generate personalized email using AI
         const personalizedEmail = await generatePersonalizedEmail({
@@ -231,7 +275,7 @@ export async function sendCampaign(campaignId, userId) {
 
     return {
       success: true,
-      total: recipients.length,
+      total: enrichedRecipients.length,
       sent: sendResults.successful,
       failed: sendResults.failed + failedGenerations.length,
       message: `Successfully sent ${sendResults.successful} emails, ${sendResults.failed + failedGenerations.length} failed`
