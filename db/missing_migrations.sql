@@ -33,16 +33,38 @@ BEGIN
 END $$;
 
 -- =====================================================
--- 2. CREATE company_tags TABLE
+-- 2. UPDATE company_tags TABLE
 -- =====================================================
--- Store custom tags for companies
+-- The company_tags table already exists but may need columns added
 
-CREATE TABLE IF NOT EXISTS company_tags (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  tag_name TEXT NOT NULL UNIQUE,
-  usage_count INTEGER DEFAULT 0,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
+-- Add columns if they don't exist
+DO $$
+BEGIN
+  -- Check if tag_name column exists, if not add it
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'company_tags' AND column_name = 'tag_name'
+  ) THEN
+    -- If tag_name doesn't exist, check what column name is used
+    -- Most likely it's 'name', so rename it
+    IF EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_name = 'company_tags' AND column_name = 'name'
+    ) THEN
+      ALTER TABLE company_tags RENAME COLUMN name TO tag_name;
+    ELSE
+      ALTER TABLE company_tags ADD COLUMN tag_name TEXT NOT NULL UNIQUE;
+    END IF;
+  END IF;
+
+  -- Add usage_count if it doesn't exist
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'company_tags' AND column_name = 'usage_count'
+  ) THEN
+    ALTER TABLE company_tags ADD COLUMN usage_count INTEGER DEFAULT 0;
+  END IF;
+END $$;
 
 -- Enable RLS
 ALTER TABLE company_tags ENABLE ROW LEVEL SECURITY;
@@ -65,23 +87,32 @@ CREATE POLICY "Authenticated users can update tags"
   USING (auth.role() = 'authenticated');
 
 -- Insert default tags (only if they don't exist)
-INSERT INTO company_tags (tag_name, usage_count) VALUES
-  ('High Priority', 0),
-  ('Contacted', 0),
-  ('Response Pending', 0),
-  ('Interested', 0),
-  ('Not Interested', 0),
-  ('Follow Up', 0),
-  ('Meeting Scheduled', 0),
-  ('Deal Closed', 0),
-  ('Cold Lead', 0),
-  ('Warm Lead', 0),
-  ('Hot Lead', 0),
-  ('Partner', 0),
-  ('Competitor', 0),
-  ('Archived', 0),
-  ('VIP', 0)
-ON CONFLICT (tag_name) DO NOTHING;
+-- First check if tag_name column exists before inserting
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'company_tags' AND column_name = 'tag_name'
+  ) THEN
+    INSERT INTO company_tags (tag_name, usage_count) VALUES
+      ('High Priority', 0),
+      ('Contacted', 0),
+      ('Response Pending', 0),
+      ('Interested', 0),
+      ('Not Interested', 0),
+      ('Follow Up', 0),
+      ('Meeting Scheduled', 0),
+      ('Deal Closed', 0),
+      ('Cold Lead', 0),
+      ('Warm Lead', 0),
+      ('Hot Lead', 0),
+      ('Partner', 0),
+      ('Competitor', 0),
+      ('Archived', 0),
+      ('VIP', 0)
+    ON CONFLICT (tag_name) DO NOTHING;
+  END IF;
+END $$;
 
 -- =====================================================
 -- VERIFICATION QUERIES
