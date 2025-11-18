@@ -520,6 +520,7 @@ ${details.employeeCount ? `👔 Employees: ~${details.employeeCount}` : ''}`
 
       // Get all selected company IDs
       const selectedIds = Array.from(selectedCompanies)
+      console.log('Selected IDs sample (first 5):', selectedIds.slice(0, 5))
 
       // If we have more selected than currently loaded, fetch all selected companies in batches
       let selectedCompanyObjects
@@ -536,11 +537,14 @@ ${details.employeeCount ? `👔 Employees: ~${details.employeeCount}` : ''}`
           console.log(`Fetching batch ${batchNum}/${totalBatches} (${i}-${Math.min(i + batchSize, selectedIds.length)})...`)
 
           const batchIds = selectedIds.slice(i, i + batchSize)
+          console.log('Batch IDs sample:', batchIds.slice(0, 3))
 
           const { data: batchCompanies, error: fetchError } = await supabase
             .from('companies')
             .select('id, company_name, email, extracted_emails, phone, website')
             .in('id', batchIds)
+
+          console.log(`Batch ${batchNum} returned ${batchCompanies?.length || 0} companies`)
 
           if (fetchError) {
             console.error('Batch fetch error:', {
@@ -552,7 +556,7 @@ ${details.employeeCount ? `👔 Employees: ~${details.employeeCount}` : ''}`
             throw new Error(`Failed to fetch companies batch ${batchNum}: ${fetchError.message || 'Unknown error'}`)
           }
 
-          if (batchCompanies) {
+          if (batchCompanies && batchCompanies.length > 0) {
             allCompanies.push(...batchCompanies)
           }
         }
