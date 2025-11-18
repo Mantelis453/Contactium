@@ -119,7 +119,9 @@ export default function CampaignDetails() {
   }
 
   const handleSendCampaign = async () => {
-    if (!confirm(`Are you sure you want to send "${campaign.name}" now?`)) return
+    const confirmMessage = `Are you sure you want to send "${campaign.name}" now?\n\nNote: The campaign will continue sending in the background even if you close this page or navigate away. You can return to this page anytime to check the progress.`
+
+    if (!confirm(confirmMessage)) return
 
     setSendingCampaign(true)
     try {
@@ -129,12 +131,18 @@ export default function CampaignDetails() {
           console.log('Campaign send completed:', result)
           // Final reload after completion
           loadCampaignDetails()
-          alert(`Campaign sent! ${result.sent} emails sent, ${result.failed} failed.`)
+          // Only alert if still on the page
+          if (document.visibilityState === 'visible') {
+            alert(`Campaign sent! ${result.sent} emails sent, ${result.failed} failed.`)
+          }
         })
         .catch(error => {
           console.error('Error sending campaign:', error)
-          alert(`Failed to send campaign: ${error.message}`)
           loadCampaignDetails()
+          // Only alert if still on the page
+          if (document.visibilityState === 'visible') {
+            alert(`Failed to send campaign: ${error.message}`)
+          }
         })
         .finally(() => {
           setSendingCampaign(false)
@@ -217,6 +225,13 @@ export default function CampaignDetails() {
         </button>
         <h2 className="page-title">{campaign.name}</h2>
       </div>
+
+      {/* Running Campaign Info */}
+      {campaign.status === 'running' && (
+        <div className="info-box" style={{ marginBottom: '1rem', backgroundColor: '#d1ecf1', borderColor: '#0c5460', color: '#0c5460' }}>
+          🚀 Campaign is currently sending emails in the background. You can safely close this page or navigate away - the campaign will continue sending. Return to this page anytime to check the progress.
+        </div>
+      )}
 
       {/* Expiration Warning */}
       {isExpired ? (
