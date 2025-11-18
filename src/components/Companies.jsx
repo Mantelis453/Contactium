@@ -521,17 +521,36 @@ ${details.employeeCount ? `👔 Employees: ~${details.employeeCount}` : ''}`
       // Get all selected company IDs
       const selectedIds = Array.from(selectedCompanies)
 
-      // If we have more selected than currently loaded, fetch all selected companies
+      // If we have more selected than currently loaded, fetch all selected companies in batches
       let selectedCompanyObjects
       if (selectedIds.length > companies.length) {
-        // Fetch all selected companies from the database
-        const { data: allSelectedCompanies, error: fetchError } = await supabase
-          .from('companies')
-          .select('id, company_name, email, extracted_emails, phone, website')
-          .in('id', selectedIds)
+        console.log(`Fetching ${selectedIds.length} selected companies...`)
 
-        if (fetchError) throw fetchError
-        selectedCompanyObjects = allSelectedCompanies
+        // Fetch in batches of 1000 IDs to avoid URL length limits
+        const batchSize = 1000
+        const allCompanies = []
+        const totalBatches = Math.ceil(selectedIds.length / batchSize)
+
+        for (let i = 0; i < selectedIds.length; i += batchSize) {
+          const batchNum = Math.floor(i / batchSize) + 1
+          console.log(`Fetching batch ${batchNum}/${totalBatches}...`)
+
+          const batchIds = selectedIds.slice(i, i + batchSize)
+          const { data: batchCompanies, error: fetchError } = await supabase
+            .from('companies')
+            .select('id, company_name, email, extracted_emails, phone, website')
+            .in('id', batchIds)
+
+          if (fetchError) {
+            console.error('Batch fetch error:', fetchError)
+            throw new Error(`Failed to fetch companies: ${fetchError.message}`)
+          }
+
+          allCompanies.push(...batchCompanies)
+        }
+
+        console.log(`Fetched ${allCompanies.length} companies`)
+        selectedCompanyObjects = allCompanies
       } else {
         // Use already loaded companies
         selectedCompanyObjects = companies.filter(c => selectedCompanies.has(c.id))
@@ -553,19 +572,28 @@ ${details.employeeCount ? `👔 Employees: ~${details.employeeCount}` : ''}`
       }
 
       // Insert in batches of 1000 to avoid payload limits
+      console.log(`Preparing to insert ${contacts.length} contacts...`)
       const batchSize = 1000
       let totalAdded = 0
+      const totalInsertBatches = Math.ceil(contacts.length / batchSize)
 
       for (let i = 0; i < contacts.length; i += batchSize) {
+        const batchNum = Math.floor(i / batchSize) + 1
+        console.log(`Inserting batch ${batchNum}/${totalInsertBatches}...`)
+
         const batch = contacts.slice(i, i + batchSize)
         const { error } = await supabase
           .from('contacts')
           .insert(batch)
 
-        if (error) throw error
+        if (error) {
+          console.error('Insert error:', error)
+          throw new Error(`Failed to insert contacts: ${error.message}`)
+        }
         totalAdded += batch.length
       }
 
+      console.log(`Successfully added ${totalAdded} contacts`)
       alert(`Successfully added ${totalAdded} companies to the contact list!`)
       setShowAddToListModal(false)
       setSelectedCompanies(new Set())
