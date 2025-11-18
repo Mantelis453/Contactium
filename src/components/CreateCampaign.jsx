@@ -191,18 +191,12 @@ export default function CreateCampaign() {
       if (recipientsError) throw recipientsError
 
       if (!formData.sendDate) {
-        try {
-          const sendResult = await sendCampaign(campaign.id, user.id)
-          alert(`Campaign sent immediately! ${sendResult.sent} emails sent successfully, ${sendResult.failed} failed.`)
-          navigate('/')
-        } catch (sendError) {
-          console.error('Error sending campaign:', sendError)
-          alert(`Campaign was created but failed to send: ${sendError.message}. You can try sending it manually from the Campaigns page.`)
-          navigate('/')
-        }
+        // Redirect to campaign details to watch live progress
+        alert(`Campaign created! Redirecting to campaign details where you can start sending and watch live progress.`)
+        navigate(`/campaigns/${campaign.id}`)
       } else {
         alert(`Campaign scheduled successfully for ${new Date(formData.sendDate).toLocaleString()}!`)
-        navigate('/')
+        navigate('/campaigns')
       }
     } catch (error) {
       console.error('Error creating campaign:', error)
