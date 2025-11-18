@@ -158,6 +158,52 @@ export default function CampaignDetails() {
     }
   }
 
+  const handleRetrySend = async () => {
+    const confirmMessage = `This will reset all failed recipients to pending and retry sending.\n\nThis is useful for testing after fixing configuration issues.\n\nContinue?`
+
+    if (!confirm(confirmMessage)) return
+
+    try {
+      setSendingCampaign(true)
+
+      // Reset failed recipients back to pending
+      const { error: resetError } = await supabase
+        .from('campaign_recipients')
+        .update({
+          status: 'pending',
+          sent_at: null,
+          personalized_email: null
+        })
+        .eq('campaign_id', campaign.id)
+        .eq('status', 'failed')
+
+      if (resetError) {
+        console.error('Error resetting recipients:', resetError)
+        alert('Failed to reset recipients: ' + resetError.message)
+        return
+      }
+
+      // Reset campaign status
+      await supabase
+        .from('campaigns')
+        .update({
+          status: 'not-started',
+          emails_sent: 0
+        })
+        .eq('id', campaign.id)
+
+      // Reload to show updated state
+      await loadCampaignDetails()
+
+      alert('Failed recipients have been reset to pending. You can now send again.')
+    } catch (error) {
+      console.error('Error resetting campaign:', error)
+      alert('Failed to reset campaign: ' + error.message)
+    } finally {
+      setSendingCampaign(false)
+    }
+  }
+
   const checkCampaignExpiration = (createdAt) => {
     const createdDate = new Date(createdAt)
     const now = new Date()
@@ -401,6 +447,16 @@ export default function CampaignDetails() {
             disabled={sendingCampaign}
           >
             {sendingCampaign ? 'Sending...' : 'Send Campaign Now'}
+          </button>
+        )}
+        {!isExpired && (campaign.status === 'completed' || campaign.status === 'failed') && stats.failed > 0 && (
+          <button
+            onClick={handleRetrySend}
+            className="secondary-btn"
+            disabled={sendingCampaign}
+            style={{ marginLeft: '10px' }}
+          >
+            🔄 Retry Failed ({stats.failed})
           </button>
         )}
         {isExpired && (
