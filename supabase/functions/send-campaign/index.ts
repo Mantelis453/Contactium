@@ -145,8 +145,14 @@ Deno.serve(async (req) => {
     const emailsToSend = []
     const failedGenerations = []
 
-    for (const recipient of enrichedRecipients) {
+    for (let i = 0; i < enrichedRecipients.length; i++) {
+      const recipient = enrichedRecipients[i]
       try {
+        // Add delay between requests to avoid rate limiting (1 second delay)
+        if (i > 0) {
+          await new Promise(resolve => setTimeout(resolve, 1000))
+        }
+
         // Generate personalized email using Gemini
         const personalizedEmail = await generatePersonalizedEmail({
           description: campaign.description,
@@ -167,6 +173,8 @@ Deno.serve(async (req) => {
           html: personalizedEmail.body.replace(/\n/g, '<br>'),
           companyName: recipient.companies.company_name
         })
+
+        console.log(`✓ Generated email for ${recipient.companies.company_name} (${i + 1}/${enrichedRecipients.length})`)
       } catch (error) {
         console.error(`Failed to generate email for ${recipient.companies.company_name}:`, error)
         failedGenerations.push({
@@ -291,7 +299,7 @@ Deno.serve(async (req) => {
   }
 })
 
-// Helper function to generate personalized email using Gemini
+// Helper function to generate personalized email using Gemini with retry logic
 async function generatePersonalizedEmail(params: {
   description: string
   category: string
@@ -302,7 +310,7 @@ async function generatePersonalizedEmail(params: {
   valueProposition: string
   callToAction: string
   geminiApiKey: string
-}) {
+}, retries = 3) {
   const prompt = `Generate a personalized business email based on these details:
 
 Campaign Category: ${params.category}
@@ -329,36 +337,58 @@ BODY: [email body here]
 
 ${params.senderName}`
 
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${params.geminiApiKey}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: {
-          temperature: 0.7,
-          topK: 40,
-          topP: 0.95,
-          maxOutputTokens: 1024
+  for (let attempt = 0; attempt < retries; attempt++) {
+    try {
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${params.geminiApiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: {
+              temperature: 0.7,
+              topK: 40,
+              topP: 0.95,
+              maxOutputTokens: 1024
+            }
+          })
         }
-      })
+      )
+
+      if (!response.ok) {
+        const errorText = await response.text()
+
+        // If rate limited, wait and retry
+        if (response.status === 429 && attempt < retries - 1) {
+          const waitTime = Math.pow(2, attempt) * 2000 // Exponential backoff: 2s, 4s, 8s
+          console.log(`Rate limited, waiting ${waitTime}ms before retry ${attempt + 1}/${retries}`)
+          await new Promise(resolve => setTimeout(resolve, waitTime))
+          continue
+        }
+
+        throw new Error(`Gemini API error: ${response.statusText} - ${errorText}`)
+      }
+
+      const data = await response.json()
+      const text = data.candidates[0].content.parts[0].text
+
+      // Parse SUBJECT and BODY from response
+      const subjectMatch = text.match(/SUBJECT:\s*(.+?)(?:\n|$)/i)
+      const bodyMatch = text.match(/BODY:\s*([\s\S]+)/i)
+
+      return {
+        subject: subjectMatch ? subjectMatch[1].trim() : 'Business Inquiry',
+        body: bodyMatch ? bodyMatch[1].trim() : text
+      }
+    } catch (error) {
+      if (attempt === retries - 1) {
+        throw error
+      }
+      // Wait before retrying on other errors
+      await new Promise(resolve => setTimeout(resolve, 1000))
     }
-  )
-
-  if (!response.ok) {
-    throw new Error(`Gemini API error: ${response.statusText}`)
   }
 
-  const data = await response.json()
-  const text = data.candidates[0].content.parts[0].text
-
-  // Parse SUBJECT and BODY from response
-  const subjectMatch = text.match(/SUBJECT:\s*(.+?)(?:\n|$)/i)
-  const bodyMatch = text.match(/BODY:\s*([\s\S]+)/i)
-
-  return {
-    subject: subjectMatch ? subjectMatch[1].trim() : 'Business Inquiry',
-    body: bodyMatch ? bodyMatch[1].trim() : text
-  }
+  throw new Error('Failed to generate email after retries')
 }
