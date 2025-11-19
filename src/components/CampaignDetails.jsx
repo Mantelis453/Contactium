@@ -153,11 +153,14 @@ export default function CampaignDetails() {
         console.log('Campaign reset to pending state')
       }
 
-      // Start sending in background - automatically retry batches
-      const sendBatch = async () => {
+      // Start sending in background - automatically retry batches with cooldown
+      const sendBatch = async (retryCount = 0, maxRetries = 3) => {
         try {
           const result = await sendCampaign(campaign.id, user.id)
           console.log('Batch completed:', result)
+
+          // Reset retry count on success
+          retryCount = 0
 
           // Reload to check status
           await loadCampaignDetails()
@@ -173,7 +176,7 @@ export default function CampaignDetails() {
             console.log('More batches to process, triggering next batch...')
             // Automatically trigger next batch after 2 seconds
             await new Promise(resolve => setTimeout(resolve, 2000))
-            await sendBatch()
+            await sendBatch(0, maxRetries)
           } else {
             console.log('All batches completed!')
             setSendingCampaign(false)
@@ -182,11 +185,33 @@ export default function CampaignDetails() {
             }
           }
         } catch (error) {
-          console.error('Error sending batch:', error)
-          loadCampaignDetails()
-          setSendingCampaign(false)
-          if (document.visibilityState === 'visible') {
-            alert(`Failed to send campaign: ${error.message}`)
+          console.error(`Error sending batch (attempt ${retryCount + 1}/${maxRetries + 1}):`, error)
+
+          if (retryCount < maxRetries) {
+            // Exponential backoff: 5s, 10s, 20s
+            const cooldownTime = Math.pow(2, retryCount) * 5000
+            console.log(`Retrying in ${cooldownTime / 1000} seconds...`)
+
+            await loadCampaignDetails()
+            await new Promise(resolve => setTimeout(resolve, cooldownTime))
+
+            // Retry with incremented count
+            await sendBatch(retryCount + 1, maxRetries)
+          } else {
+            // Max retries reached - stop campaign
+            console.error('Max retries reached, stopping campaign')
+
+            await supabase
+              .from('campaigns')
+              .update({ status: 'failed' })
+              .eq('id', campaign.id)
+
+            loadCampaignDetails()
+            setSendingCampaign(false)
+
+            if (document.visibilityState === 'visible') {
+              alert(`Campaign failed after ${maxRetries + 1} attempts: ${error.message}\n\nYou can use "Continue Sending" to retry.`)
+            }
           }
         }
       }
