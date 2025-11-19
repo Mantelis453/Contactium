@@ -115,106 +115,225 @@ export default function Dashboard() {
 
   return (
     <div className="page-container">
-      <h2 className="page-title">Dashboard</h2>
-
-      <div className="stats-grid">
-        <div className="stat-card">
-          <div className="stat-header">
-            <div className="stat-label">Total Campaigns</div>
+      <div className="dashboard-header">
+        <div className="header-content">
+          <div>
+            <h2 className="page-title">Dashboard</h2>
+            <p className="dashboard-subtitle">Monitor and manage your email campaigns</p>
           </div>
-          <div className="stat-value">{stats.total}</div>
-        </div>
-        <div className="stat-card stat-card-success">
-          <div className="stat-header">
-            <div className="stat-label">Completed</div>
-          </div>
-          <div className="stat-value">{stats.completed}</div>
-        </div>
-        <div className="stat-card stat-card-info">
-          <div className="stat-header">
-            <div className="stat-label">Running</div>
-          </div>
-          <div className="stat-value">{stats.running}</div>
-        </div>
-        <div className="stat-card stat-card-primary">
-          <div className="stat-header">
-            <div className="stat-label">Emails Sent</div>
-          </div>
-          <div className="stat-value">{stats.totalEmailsSent}</div>
+          <button onClick={handleCreateCampaign} className="primary-btn create-campaign-btn">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+            </svg>
+            Create Campaign
+          </button>
         </div>
       </div>
 
-      <div className="campaigns-section">
-        <h3>Recent Campaigns</h3>
-        {campaigns.length === 0 ? (
-          <div className="empty-state">
-            <p>No campaigns yet. Create your first campaign to get started!</p>
-            <a href="/create" onClick={handleCreateCampaign} className="primary-btn">Create Campaign</a>
+      <div className="stats-grid">
+        <div className="stat-card">
+          <div className="stat-icon stat-icon-default">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
+              <polyline points="9 22 9 12 15 12 15 22" />
+            </svg>
           </div>
-        ) : (
-          <div className="campaigns-table">
-            <table>
-              <thead>
-                <tr>
-                  <th>Campaign Name</th>
-                  <th>Category</th>
-                  <th>Emails Sent</th>
-                  <th>Send Date</th>
-                  <th>Status</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {campaigns.map((campaign) => {
-                  const expirationInfo = checkCampaignExpiration(campaign.created_at)
-                  return (
-                    <tr
-                      key={campaign.id}
-                      onClick={() => navigate(`/campaigns/${campaign.id}`)}
-                      style={{ cursor: 'pointer' }}
-                    >
-                      <td>
-                        <strong>{campaign.name}</strong>
-                        {expirationInfo.isExpired && (
-                          <div style={{ fontSize: '0.75rem', color: '#dc3545', marginTop: '0.25rem' }}>
-                            ⚠️ Expired
-                          </div>
-                        )}
-                        {!expirationInfo.isExpired && expirationInfo.daysRemaining <= 7 && (
-                          <div style={{ fontSize: '0.75rem', color: '#ffc107', marginTop: '0.25rem' }}>
-                            ⏳ {expirationInfo.daysRemaining}d left
-                          </div>
-                        )}
-                      </td>
-                      <td><span className="category-badge">{campaign.category || 'General'}</span></td>
-                      <td>{campaign.emails_sent || 0}</td>
-                      <td>{formatDate(campaign.send_date)}</td>
-                      <td>
-                        <span className={`status-badge ${campaign.status}`}>
-                          {campaign.status}
-                        </span>
-                      </td>
-                      <td onClick={(e) => e.stopPropagation()}>
-                        {!expirationInfo.isExpired && (campaign.status === 'not-started' || campaign.status === 'failed') && (
-                          <button
-                            onClick={() => handleSendCampaign(campaign.id, campaign.name)}
-                            className="action-btn primary"
-                            disabled={sendingCampaignId === campaign.id}
-                          >
-                            {sendingCampaignId === campaign.id ? 'Sending...' : 'Send'}
-                          </button>
-                        )}
-                        {expirationInfo.isExpired && (
-                          <span style={{ fontSize: '0.85rem', color: '#6c757d' }}>Expired</span>
-                        )}
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
+          <div className="stat-content">
+            <div className="stat-label">Total Campaigns</div>
+            <div className="stat-value">{stats.total}</div>
+            <div className="stat-change">
+              <Link to="/campaigns" className="stat-link">View all →</Link>
+            </div>
           </div>
-        )}
+        </div>
+
+        <div className="stat-card stat-card-success">
+          <div className="stat-icon stat-icon-success">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M22 11.08V12a10 10 0 11-5.93-9.14" />
+              <polyline points="22 4 12 14.01 9 11.01" />
+            </svg>
+          </div>
+          <div className="stat-content">
+            <div className="stat-label">Completed</div>
+            <div className="stat-value">{stats.completed}</div>
+            <div className="stat-change">
+              {stats.total > 0 && (
+                <span className="stat-percentage">{Math.round((stats.completed / stats.total) * 100)}% success rate</span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="stat-card stat-card-info">
+          <div className="stat-icon stat-icon-info">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="12" cy="12" r="10" />
+              <polyline points="12 6 12 12 16 14" />
+            </svg>
+          </div>
+          <div className="stat-content">
+            <div className="stat-label">Active Campaigns</div>
+            <div className="stat-value">{stats.running}</div>
+            <div className="stat-change">
+              {stats.running > 0 ? (
+                <span className="stat-status stat-status-active">In progress</span>
+              ) : (
+                <span className="stat-status">No active campaigns</span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="stat-card stat-card-primary">
+          <div className="stat-icon stat-icon-primary">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+              <polyline points="22,6 12,13 2,6" />
+            </svg>
+          </div>
+          <div className="stat-content">
+            <div className="stat-label">Total Emails Sent</div>
+            <div className="stat-value">{stats.totalEmailsSent.toLocaleString()}</div>
+            <div className="stat-change">
+              {stats.totalEmailsSent > 0 && (
+                <span className="stat-percentage">Across all campaigns</span>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="dashboard-content">
+        <div className="campaigns-section">
+          <div className="section-header">
+            <h3>Recent Campaigns</h3>
+            <Link to="/campaigns" className="view-all-link">
+              View all campaigns →
+            </Link>
+          </div>
+
+          {campaigns.length === 0 ? (
+            <div className="empty-state">
+              <div className="empty-state-icon">
+                <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                  <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+                  <polyline points="22,6 12,13 2,6" />
+                </svg>
+              </div>
+              <h4>No campaigns yet</h4>
+              <p>Create your first campaign to start sending personalized emails to your contacts.</p>
+              <button onClick={handleCreateCampaign} className="primary-btn">
+                Create Your First Campaign
+              </button>
+            </div>
+          ) : (
+            <div className="campaigns-list">
+              {campaigns.map((campaign) => {
+                const expirationInfo = checkCampaignExpiration(campaign.created_at)
+                return (
+                  <div
+                    key={campaign.id}
+                    className="campaign-card"
+                    onClick={() => navigate(`/campaigns/${campaign.id}`)}
+                  >
+                    <div className="campaign-card-header">
+                      <div className="campaign-info">
+                        <h4 className="campaign-name">{campaign.name}</h4>
+                        <div className="campaign-meta">
+                          <span className="category-badge">{campaign.category || 'General'}</span>
+                          <span className="campaign-date">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                              <line x1="16" y1="2" x2="16" y2="6" />
+                              <line x1="8" y1="2" x2="8" y2="6" />
+                              <line x1="3" y1="10" x2="21" y2="10" />
+                            </svg>
+                            {formatDate(campaign.created_at)}
+                          </span>
+                        </div>
+                      </div>
+                      <span className={`status-badge status-${campaign.status}`}>
+                        {campaign.status === 'not-started' ? 'Ready' : campaign.status}
+                      </span>
+                    </div>
+
+                    <div className="campaign-card-stats">
+                      <div className="campaign-stat">
+                        <div className="campaign-stat-value">{campaign.emails_sent || 0}</div>
+                        <div className="campaign-stat-label">Emails Sent</div>
+                      </div>
+                      <div className="campaign-stat-divider" />
+                      <div className="campaign-stat">
+                        <div className="campaign-stat-value">
+                          {campaign.emails_sent > 0
+                            ? `${Math.round((campaign.emails_sent / (campaign.total_recipients || campaign.emails_sent)) * 100)}%`
+                            : '0%'
+                          }
+                        </div>
+                        <div className="campaign-stat-label">Completion</div>
+                      </div>
+                    </div>
+
+                    {expirationInfo.isExpired && (
+                      <div className="campaign-alert campaign-alert-danger">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M12 2L2 20h20L12 2zm0 5l7 13H5l7-13z" />
+                          <path d="M11 10h2v5h-2zm0 6h2v2h-2z" />
+                        </svg>
+                        Campaign expired
+                      </div>
+                    )}
+
+                    {!expirationInfo.isExpired && expirationInfo.daysRemaining <= 7 && (
+                      <div className="campaign-alert campaign-alert-warning">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <circle cx="12" cy="12" r="10" />
+                          <polyline points="12 6 12 12 16 14" />
+                        </svg>
+                        Expires in {expirationInfo.daysRemaining} days
+                      </div>
+                    )}
+
+                    <div className="campaign-card-actions" onClick={(e) => e.stopPropagation()}>
+                      {!expirationInfo.isExpired && (campaign.status === 'not-started' || campaign.status === 'failed') && (
+                        <button
+                          onClick={() => handleSendCampaign(campaign.id, campaign.name)}
+                          className="campaign-action-btn campaign-action-primary"
+                          disabled={sendingCampaignId === campaign.id}
+                        >
+                          {sendingCampaignId === campaign.id ? (
+                            <>
+                              <svg className="spinner" width="16" height="16" viewBox="0 0 24 24">
+                                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" opacity="0.25" />
+                                <path d="M12 2a10 10 0 0110 10" stroke="currentColor" strokeWidth="4" fill="none" />
+                              </svg>
+                              Sending...
+                            </>
+                          ) : (
+                            <>
+                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <line x1="22" y1="2" x2="11" y2="13" />
+                                <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                              </svg>
+                              Send Now
+                            </>
+                          )}
+                        </button>
+                      )}
+                      <button
+                        onClick={() => navigate(`/campaigns/${campaign.id}`)}
+                        className="campaign-action-btn campaign-action-secondary"
+                      >
+                        View Details →
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )
