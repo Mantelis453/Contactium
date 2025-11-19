@@ -12,23 +12,55 @@ export async function sendCampaign(campaignId, userId) {
     console.log('Starting campaign send via Supabase Edge Function:', campaignId)
 
     // Call Supabase Edge Function to handle campaign sending server-side
-    const { data, error } = await supabase.functions.invoke('send-campaign', {
+    const response = await supabase.functions.invoke('send-campaign', {
       body: {
         campaignId,
         userId
       }
     })
 
+    console.log('Full response:', response)
+
+    const { data, error } = response
+
     if (error) {
       console.error('Edge Function error:', error)
-      throw new Error(error.message || 'Failed to send campaign')
+      console.error('Error details:', JSON.stringify(error, null, 2))
+
+      // Try to extract error message from response context
+      let errorMessage = error.message || 'Failed to send campaign'
+
+      // If there's context with more details, use it
+      if (error.context) {
+        try {
+          const contextData = typeof error.context === 'string' ? JSON.parse(error.context) : error.context
+          console.error('Error context:', contextData)
+          if (contextData.error) {
+            errorMessage = contextData.error
+          }
+        } catch (e) {
+          console.error('Failed to parse error context:', e)
+        }
+      }
+
+      console.error('📛 Detailed error:', errorMessage)
+      throw new Error(errorMessage)
     }
 
-    if (!data.success) {
+    // Check if data exists and has the expected structure
+    if (!data) {
+      console.error('❌ No response data from Edge Function')
+      throw new Error('No response data from Edge Function')
+    }
+
+    console.log('Response data:', data)
+
+    if (data.success === false) {
+      console.error('❌ Campaign failed:', data.error)
       throw new Error(data.error || 'Campaign sending failed')
     }
 
-    console.log('Campaign send completed:', data)
+    console.log('✅ Campaign send completed:', data)
 
     return {
       success: true,
@@ -39,7 +71,7 @@ export async function sendCampaign(campaignId, userId) {
     }
 
   } catch (error) {
-    console.error('Error in sendCampaign:', error)
+    console.error('❌ Error in sendCampaign:', error)
     throw error
   }
 }

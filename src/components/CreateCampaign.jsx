@@ -100,6 +100,11 @@ export default function CreateCampaign() {
       return
     }
 
+    if (selectedContacts.length > 100) {
+      alert('Maximum 100 contacts allowed per campaign. Please reduce your selection.')
+      return
+    }
+
     setGeneratingEmail(true)
     setReferenceEmail(null)
     setEmailApproved(false)
@@ -145,6 +150,11 @@ export default function CreateCampaign() {
   }
 
   const saveCampaign = async () => {
+    if (selectedContacts.length > 100) {
+      alert('Maximum 100 contacts allowed per campaign. Please reduce your selection.')
+      return
+    }
+
     setLoading(true)
     try {
       console.log('Creating campaign...', { formData, selectedContacts: selectedContacts.length })

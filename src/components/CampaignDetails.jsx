@@ -153,28 +153,45 @@ export default function CampaignDetails() {
         console.log('Campaign reset to pending state')
       }
 
-      // Start sending in background - don't wait for completion
-      sendCampaign(campaign.id, user.id)
-        .then(result => {
-          console.log('Campaign send completed:', result)
-          // Final reload after completion
-          loadCampaignDetails()
-          // Only alert if still on the page
-          if (document.visibilityState === 'visible') {
-            alert(`Campaign sent! ${result.sent} emails sent, ${result.failed} failed.`)
+      // Start sending in background - automatically retry batches
+      const sendBatch = async () => {
+        try {
+          const result = await sendCampaign(campaign.id, user.id)
+          console.log('Batch completed:', result)
+
+          // Reload to check status
+          await loadCampaignDetails()
+
+          // Check if campaign is still running (more batches to process)
+          const { data: campaignData } = await supabase
+            .from('campaigns')
+            .select('status')
+            .eq('id', campaign.id)
+            .single()
+
+          if (campaignData?.status === 'running') {
+            console.log('More batches to process, triggering next batch...')
+            // Automatically trigger next batch after 2 seconds
+            await new Promise(resolve => setTimeout(resolve, 2000))
+            await sendBatch()
+          } else {
+            console.log('All batches completed!')
+            setSendingCampaign(false)
+            if (document.visibilityState === 'visible') {
+              alert(`Campaign completed! Check the statistics below.`)
+            }
           }
-        })
-        .catch(error => {
-          console.error('Error sending campaign:', error)
+        } catch (error) {
+          console.error('Error sending batch:', error)
           loadCampaignDetails()
-          // Only alert if still on the page
+          setSendingCampaign(false)
           if (document.visibilityState === 'visible') {
             alert(`Failed to send campaign: ${error.message}`)
           }
-        })
-        .finally(() => {
-          setSendingCampaign(false)
-        })
+        }
+      }
+
+      sendBatch()
 
       // Immediately reload to show "running" status
       await new Promise(resolve => setTimeout(resolve, 500))
@@ -478,13 +495,30 @@ export default function CampaignDetails() {
           </button>
         )}
         {!isExpired && campaign.status === 'running' && (
-          <button
-            className="primary-btn"
-            disabled={true}
-            style={{ opacity: 0.6, cursor: 'not-allowed' }}
-          >
-            ⏳ Sending in progress...
-          </button>
+          <>
+            <button
+              onClick={handleSendCampaign}
+              className="primary-btn"
+              disabled={sendingCampaign}
+            >
+              {sendingCampaign ? 'Sending...' : '▶️ Continue Sending'}
+            </button>
+            <button
+              onClick={async () => {
+                if (confirm('Stop the campaign and mark it as completed?')) {
+                  await supabase
+                    .from('campaigns')
+                    .update({ status: 'completed' })
+                    .eq('id', campaign.id)
+                  loadCampaignDetails()
+                }
+              }}
+              className="secondary-btn"
+              style={{ marginLeft: '10px' }}
+            >
+              ⏹️ Stop Campaign
+            </button>
+          </>
         )}
         {!isExpired && (campaign.status === 'completed' || campaign.status === 'failed') && stats.failed > 0 && (
           <button

@@ -52,16 +52,18 @@ Deno.serve(async (req) => {
       })
       .eq('id', campaignId)
 
-    // 4. Get all pending recipients (supports both companies and contacts)
+    // 4. Get pending recipients (limit to 25 per batch to avoid Edge Function timeout)
+    const BATCH_SIZE = 25
     const { data: recipients, error: recipientsError } = await supabase
       .from('campaign_recipients')
       .select('id, company_id, contact_id, recipient_email, recipient_name, status')
       .eq('campaign_id', campaignId)
       .eq('status', 'pending')
+      .limit(BATCH_SIZE)
 
     if (recipientsError) throw recipientsError
 
-    console.log(`Found ${recipients.length} recipients to send to`)
+    console.log(`Found ${recipients.length} pending recipients (batch size: ${BATCH_SIZE})`)
 
     if (recipients.length === 0) {
       await supabase
@@ -130,16 +132,33 @@ Deno.serve(async (req) => {
     })
 
     // 5. Get user's SMTP settings and Gemini API key
+    console.log('Loading user settings for user:', userId)
+
     const { data: userSettings, error: settingsError } = await supabase
       .from('user_settings')
       .select('gemini_api_key, smtp_host, smtp_port, smtp_user, smtp_pass, smtp_from_email, smtp_from_name')
       .eq('user_id', userId)
       .single()
 
+    console.log('Settings query result:', {
+      error: settingsError,
+      hasData: !!userSettings,
+      dataKeys: userSettings ? Object.keys(userSettings) : []
+    })
+
     if (settingsError) {
       console.error('Error loading user settings:', settingsError)
       throw new Error(`Failed to load user settings: ${settingsError.message}. Please check your Settings page.`)
     }
+
+    console.log('User settings loaded:', {
+      hasGeminiKey: !!userSettings?.gemini_api_key,
+      hasSmtpHost: !!userSettings?.smtp_host,
+      hasSmtpUser: !!userSettings?.smtp_user,
+      hasSmtpPass: !!userSettings?.smtp_pass,
+      smtpHost: userSettings?.smtp_host,
+      smtpPort: userSettings?.smtp_port
+    })
 
     const geminiApiKey = userSettings?.gemini_api_key || Deno.env.get('GEMINI_API_KEY')
 
@@ -176,18 +195,17 @@ Deno.serve(async (req) => {
 
     console.log('SMTP config loaded:', { host: smtpConfig.host, port: smtpConfig.port, user: smtpConfig.user })
 
-    // 6. Generate personalized emails for each recipient
-    console.log('Generating personalized emails...')
-    const emailsToSend = []
-    const failedGenerations = []
+    // 6. Generate and send emails one at a time (avoids rate limiting and memory issues)
+    console.log('Starting to generate and send emails...')
+    let sentCount = 0
+    let failedCount = 0
+    const UPDATE_INTERVAL = 5 // Update campaign stats every 5 emails
 
     for (let i = 0; i < enrichedRecipients.length; i++) {
       const recipient = enrichedRecipients[i]
+
       try {
-        // Add delay between requests to avoid rate limiting (1 second delay)
-        if (i > 0) {
-          await new Promise(resolve => setTimeout(resolve, 1000))
-        }
+        console.log(`[${i + 1}/${enrichedRecipients.length}] Processing ${recipient.companies.company_name}...`)
 
         // Generate personalized email using Gemini
         const personalizedEmail = await generatePersonalizedEmail({
@@ -202,73 +220,43 @@ Deno.serve(async (req) => {
           geminiApiKey
         })
 
-        emailsToSend.push({
-          recipientId: recipient.id,
-          to: recipient.companies.email,
-          subject: personalizedEmail.subject,
-          html: personalizedEmail.body.replace(/\n/g, '<br>'),
-          text: personalizedEmail.body,
-          companyName: recipient.companies.company_name
-        })
+        console.log(`✓ Generated email for ${recipient.companies.company_name}`)
 
-        console.log(`✓ Generated email for ${recipient.companies.company_name} (${i + 1}/${enrichedRecipients.length})`)
-      } catch (error) {
-        console.error(`Failed to generate email for ${recipient.companies.company_name}:`, error)
-        failedGenerations.push({
-          recipientId: recipient.id,
-          companyName: recipient.companies.company_name,
-          error: error.message
-        })
-      }
-    }
-
-    console.log(`Generated ${emailsToSend.length} emails, ${failedGenerations.length} failed`)
-
-    // 7. Send emails using SMTP with batch processing and real-time updates
-    console.log('Sending emails via SMTP...')
-    let sentCount = 0
-    let failedCount = 0
-    const BATCH_SIZE = 10 // Process 10 emails at a time for better progress tracking
-    const UPDATE_INTERVAL = 5 // Update campaign stats every 5 emails
-
-    for (let i = 0; i < emailsToSend.length; i++) {
-      const email = emailsToSend[i]
-
-      try {
+        // Immediately send the email
         await sendEmailSMTP({
           from: {
             email: smtpConfig.fromEmail,
             name: smtpConfig.fromName
           },
-          to: email.to,
-          subject: email.subject,
-          html: email.html,
-          text: email.text,
+          to: recipient.companies.email,
+          subject: personalizedEmail.subject,
+          html: personalizedEmail.body.replace(/\n/g, '<br>'),
+          text: personalizedEmail.body,
           smtpConfig
         })
 
-        // Email sent successfully - update immediately
+        // Email sent successfully - update database
         const { error: updateError } = await supabase
           .from('campaign_recipients')
           .update({
             status: 'sent',
             sent_at: new Date().toISOString(),
             personalized_email: {
-              subject: email.subject,
-              body: email.html
+              subject: personalizedEmail.subject,
+              body: personalizedEmail.body.replace(/\n/g, '<br>')
             }
           })
-          .eq('id', email.recipientId)
+          .eq('id', recipient.id)
 
         if (updateError) {
-          console.error(`Failed to update recipient ${email.recipientId} to sent:`, updateError)
+          console.error(`Failed to update recipient ${recipient.id} to sent:`, updateError)
         }
 
         sentCount++
-        console.log(`✓ Sent ${sentCount}/${emailsToSend.length} - ${email.companyName}`)
+        console.log(`✓ Sent ${sentCount}/${enrichedRecipients.length} - ${recipient.companies.company_name}`)
 
         // Update campaign progress every UPDATE_INTERVAL emails or on last email
-        if (sentCount % UPDATE_INTERVAL === 0 || i === emailsToSend.length - 1) {
+        if (sentCount % UPDATE_INTERVAL === 0 || i === enrichedRecipients.length - 1) {
           await supabase
             .from('campaigns')
             .update({
@@ -276,29 +264,32 @@ Deno.serve(async (req) => {
               updated_at: new Date().toISOString()
             })
             .eq('id', campaignId)
-          console.log(`📊 Progress updated: ${sentCount} sent, ${failedCount} failed`)
+          console.log(`📊 Progress: ${sentCount} sent, ${failedCount} failed`)
         }
 
-        // Small delay between sends to avoid overwhelming SMTP server (0.5 seconds)
-        await new Promise(resolve => setTimeout(resolve, 500))
+        // Delay between emails (6 seconds to stay under 10/minute Gemini limit)
+        if (i < enrichedRecipients.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 6000))
+        }
+
       } catch (error) {
-        // Email failed to send - update immediately
-        console.error(`✗ Failed to send email to ${email.companyName}:`, error.message)
+        // Failed to generate or send - update database
+        console.error(`✗ Failed for ${recipient.companies.company_name}:`, error.message)
 
         const { error: updateError } = await supabase
           .from('campaign_recipients')
           .update({ status: 'failed' })
-          .eq('id', email.recipientId)
+          .eq('id', recipient.id)
 
         if (updateError) {
-          console.error(`Failed to update recipient ${email.recipientId} to failed:`, updateError)
+          console.error(`Failed to update recipient ${recipient.id} to failed:`, updateError)
         }
 
         failedCount++
-        console.log(`❌ Failed ${failedCount}/${emailsToSend.length}`)
+        console.log(`❌ Failed ${failedCount}/${enrichedRecipients.length}`)
 
-        // Update campaign progress for failures too
-        if ((sentCount + failedCount) % UPDATE_INTERVAL === 0 || i === emailsToSend.length - 1) {
+        // Update campaign progress
+        if ((sentCount + failedCount) % UPDATE_INTERVAL === 0 || i === enrichedRecipients.length - 1) {
           await supabase
             .from('campaigns')
             .update({
@@ -306,34 +297,40 @@ Deno.serve(async (req) => {
               updated_at: new Date().toISOString()
             })
             .eq('id', campaignId)
-          console.log(`📊 Progress updated: ${sentCount} sent, ${failedCount} failed`)
+          console.log(`📊 Progress: ${sentCount} sent, ${failedCount} failed`)
         }
 
-        // Shorter delay after failure (0.2 seconds) to continue quickly
-        await new Promise(resolve => setTimeout(resolve, 200))
+        // Shorter delay after failure (2 seconds)
+        if (i < enrichedRecipients.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 2000))
+        }
       }
     }
 
-    // 8. Mark failed generations
-    for (const failed of failedGenerations) {
-      await supabase
-        .from('campaign_recipients')
-        .update({ status: 'failed' })
-        .eq('id', failed.recipientId)
-      failedCount++
-    }
+    // 9. Check if there are more pending recipients
+    const { data: remainingRecipients } = await supabase
+      .from('campaign_recipients')
+      .select('id', { count: 'exact', head: true })
+      .eq('campaign_id', campaignId)
+      .eq('status', 'pending')
 
-    // 9. Update campaign status to completed
+    const hasMorePending = remainingRecipients && remainingRecipients.length > 0
+
+    // Update campaign status - keep as 'running' if more pending, otherwise 'completed'
     await supabase
       .from('campaigns')
       .update({
-        status: 'completed',
+        status: hasMorePending ? 'running' : 'completed',
         emails_sent: sentCount,
         updated_at: new Date().toISOString()
       })
       .eq('id', campaignId)
 
-    console.log(`🎉 Campaign sending completed! Total: ${enrichedRecipients.length}, Sent: ${sentCount}, Failed: ${failedCount}`)
+    if (hasMorePending) {
+      console.log(`📦 Batch completed! Sent: ${sentCount}, Failed: ${failedCount}. More pending recipients remain.`)
+    } else {
+      console.log(`🎉 Campaign fully completed! Total sent: ${sentCount}, Failed: ${failedCount}`)
+    }
 
     return new Response(
       JSON.stringify({
@@ -389,8 +386,8 @@ async function sendEmailSMTP(params: {
   // Connect to SMTP server
   let conn: Deno.TcpConn | Deno.TlsConn
 
-  // Timeout wrapper for async operations (30 seconds)
-  const withTimeout = <T>(promise: Promise<T>, timeoutMs: number = 30000): Promise<T> => {
+  // Timeout wrapper for async operations
+  const withTimeout = <T>(promise: Promise<T>, timeoutMs: number): Promise<T> => {
     return Promise.race([
       promise,
       new Promise<T>((_, reject) =>
@@ -407,7 +404,7 @@ async function sendEmailSMTP(params: {
           hostname: smtpConfig.host,
           port: parseInt(smtpConfig.port)
         }),
-        10000 // 10 second timeout for connection
+        20000 // 20 second timeout for connection
       )
     } else {
       // For port 587 (TLS), start with regular TCP
@@ -416,21 +413,21 @@ async function sendEmailSMTP(params: {
           hostname: smtpConfig.host,
           port: parseInt(smtpConfig.port)
         }),
-        10000 // 10 second timeout for connection
+        20000 // 20 second timeout for connection
       )
     }
 
     // Helper function to read SMTP response with timeout
     const readResponse = async (): Promise<string> => {
       const buffer = new Uint8Array(4096)
-      const n = await withTimeout(conn.read(buffer), 5000) // 5 second timeout
+      const n = await withTimeout(conn.read(buffer), 15000) // 15 second timeout
       if (!n) throw new Error('Connection closed')
       return new TextDecoder().decode(buffer.subarray(0, n))
     }
 
     // Helper function to send SMTP command with timeout
     const sendCommand = async (command: string): Promise<string> => {
-      await withTimeout(conn.write(new TextEncoder().encode(command + '\r\n')), 5000)
+      await withTimeout(conn.write(new TextEncoder().encode(command + '\r\n')), 15000)
       return await readResponse()
     }
 
