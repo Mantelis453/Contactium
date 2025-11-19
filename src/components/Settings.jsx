@@ -24,9 +24,10 @@ export default function Settings() {
     personalization_level: 'high',
     smtp_host: '',
     smtp_port: '587',
-    smtp_username: '',
-    smtp_password: '',
-    smtp_secure: false
+    smtp_user: '',
+    smtp_pass: '',
+    smtp_from_email: '',
+    smtp_from_name: ''
   })
 
   useEffect(() => {
@@ -68,9 +69,10 @@ export default function Settings() {
           personalization_level: data.personalization_level ?? 'high',
           smtp_host: data.smtp_host ?? '',
           smtp_port: data.smtp_port ?? '587',
-          smtp_username: data.smtp_username ?? '',
-          smtp_password: data.smtp_password ?? '',
-          smtp_secure: data.smtp_secure ?? false
+          smtp_user: data.smtp_user ?? '',
+          smtp_pass: data.smtp_pass ?? '',
+          smtp_from_email: data.smtp_from_email ?? '',
+          smtp_from_name: data.smtp_from_name ?? ''
         })
       }
     } catch (error) {
@@ -95,7 +97,7 @@ export default function Settings() {
       console.log('Testing connection for user:', user.id)
       console.log('Current settings:', {
         ...settings,
-        smtp_password: settings.smtp_password ? '***' : null
+        smtp_pass: settings.smtp_pass ? '***' : null
       })
 
       const result = await testSmtpConnection(user.id)
@@ -149,9 +151,10 @@ export default function Settings() {
             personalization_level: settings.personalization_level,
             smtp_host: settings.smtp_host,
             smtp_port: settings.smtp_port,
-            smtp_username: settings.smtp_username,
-            smtp_password: settings.smtp_password,
-            smtp_secure: settings.smtp_secure,
+            smtp_user: settings.smtp_user,
+            smtp_pass: settings.smtp_pass,
+            smtp_from_email: settings.smtp_from_email,
+            smtp_from_name: settings.smtp_from_name,
             updated_at: new Date().toISOString()
           })
           .eq('user_id', user.id)
@@ -180,9 +183,10 @@ export default function Settings() {
             personalization_level: settings.personalization_level,
             smtp_host: settings.smtp_host,
             smtp_port: settings.smtp_port,
-            smtp_username: settings.smtp_username,
-            smtp_password: settings.smtp_password,
-            smtp_secure: settings.smtp_secure
+            smtp_user: settings.smtp_user,
+            smtp_pass: settings.smtp_pass,
+            smtp_from_email: settings.smtp_from_email,
+            smtp_from_name: settings.smtp_from_name
           })
 
         if (error) {
@@ -314,8 +318,8 @@ export default function Settings() {
             <label>Username <span className="required">*</span></label>
             <input
               type="text"
-              name="smtp_username"
-              value={settings.smtp_username}
+              name="smtp_user"
+              value={settings.smtp_user}
               onChange={handleChange}
               placeholder="your-email@example.com"
             />
@@ -326,8 +330,8 @@ export default function Settings() {
             <label>Password <span className="required">*</span></label>
             <input
               type="password"
-              name="smtp_password"
-              value={settings.smtp_password}
+              name="smtp_pass"
+              value={settings.smtp_pass}
               onChange={handleChange}
               placeholder="Your SMTP password"
             />
@@ -336,16 +340,29 @@ export default function Settings() {
             </p>
           </div>
 
-          <div className="form-group">
-            <label className="checkbox-label">
+          <div className="form-row">
+            <div className="form-group">
+              <label>From Email</label>
               <input
-                type="checkbox"
-                name="smtp_secure"
-                checked={settings.smtp_secure}
-                onChange={(e) => setSettings({...settings, smtp_secure: e.target.checked})}
+                type="email"
+                name="smtp_from_email"
+                value={settings.smtp_from_email}
+                onChange={handleChange}
+                placeholder="Leave blank to use username"
               />
-              <span>Use SSL/TLS encryption (Port 465 only)</span>
-            </label>
+              <p className="help-text">Optional: Custom "From" email address</p>
+            </div>
+            <div className="form-group">
+              <label>From Name</label>
+              <input
+                type="text"
+                name="smtp_from_name"
+                value={settings.smtp_from_name}
+                onChange={handleChange}
+                placeholder="Leave blank to use sender name"
+              />
+              <p className="help-text">Optional: Display name for sender</p>
+            </div>
           </div>
 
           <div className="form-group">

@@ -119,12 +119,40 @@ export default function CampaignDetails() {
   }
 
   const handleSendCampaign = async () => {
-    const confirmMessage = `Are you sure you want to send "${campaign.name}" now?\n\nNote: The campaign will continue sending in the background even if you close this page or navigate away. You can return to this page anytime to check the progress.`
+    let confirmMessage = `Are you sure you want to send "${campaign.name}" now?\n\nNote: The campaign will continue sending in the background even if you close this page or navigate away. You can return to this page anytime to check the progress.`
+
+    // If campaign was already sent, ask for confirmation to send again
+    if (campaign.status === 'completed') {
+      confirmMessage = `This campaign was already sent to ${stats.sent} recipients.\n\nSending again will re-send emails to ALL recipients (including those already sent).\n\nAre you sure you want to send again?`
+    }
 
     if (!confirm(confirmMessage)) return
 
     setSendingCampaign(true)
     try {
+      // If campaign was already sent, reset all recipients to pending
+      if (campaign.status === 'completed' || campaign.status === 'failed') {
+        await supabase
+          .from('campaign_recipients')
+          .update({
+            status: 'pending',
+            sent_at: null,
+            personalized_email: null
+          })
+          .eq('campaign_id', campaign.id)
+
+        // Reset campaign status
+        await supabase
+          .from('campaigns')
+          .update({
+            status: 'not-started',
+            emails_sent: 0
+          })
+          .eq('id', campaign.id)
+
+        console.log('Campaign reset to pending state')
+      }
+
       // Start sending in background - don't wait for completion
       sendCampaign(campaign.id, user.id)
         .then(result => {
@@ -440,13 +468,22 @@ export default function CampaignDetails() {
 
       {/* Actions */}
       <div className="details-actions">
-        {!isExpired && (campaign.status === 'not-started' || campaign.status === 'failed') && (
+        {!isExpired && campaign.status !== 'running' && (
           <button
             onClick={handleSendCampaign}
             className="primary-btn"
             disabled={sendingCampaign}
           >
-            {sendingCampaign ? 'Sending...' : 'Send Campaign Now'}
+            {sendingCampaign ? 'Sending...' : campaign.status === 'completed' ? '🔄 Send Again' : 'Send Campaign Now'}
+          </button>
+        )}
+        {!isExpired && campaign.status === 'running' && (
+          <button
+            className="primary-btn"
+            disabled={true}
+            style={{ opacity: 0.6, cursor: 'not-allowed' }}
+          >
+            ⏳ Sending in progress...
           </button>
         )}
         {!isExpired && (campaign.status === 'completed' || campaign.status === 'failed') && stats.failed > 0 && (
@@ -456,7 +493,7 @@ export default function CampaignDetails() {
             disabled={sendingCampaign}
             style={{ marginLeft: '10px' }}
           >
-            🔄 Retry Failed ({stats.failed})
+            🔄 Retry Failed Only ({stats.failed})
           </button>
         )}
         {isExpired && (

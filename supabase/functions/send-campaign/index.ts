@@ -2,9 +2,11 @@ import { corsHeaders } from '../_shared/cors.ts'
 import { createSupabaseClient } from '../_shared/supabase.ts'
 
 // Note: You'll need to add these environment variables to Supabase
-// RESEND_API_KEY - Your Resend API key
+// SMTP_HOST - Your SMTP server (e.g., smtp.gmail.com)
+// SMTP_PORT - SMTP port (e.g., 587 for TLS, 465 for SSL)
+// SMTP_USER - Your email address
+// SMTP_PASS - Your email password or app-specific password
 // GEMINI_API_KEY - Your Gemini API key (or get from user_settings)
-// APP_URL - Your app URL
 
 interface SendCampaignRequest {
   campaignId: string
@@ -127,18 +129,52 @@ Deno.serve(async (req) => {
       }
     })
 
-    // 5. Get user's Gemini API key from settings
-    const { data: userSettings } = await supabase
+    // 5. Get user's SMTP settings and Gemini API key
+    const { data: userSettings, error: settingsError } = await supabase
       .from('user_settings')
-      .select('gemini_api_key')
+      .select('gemini_api_key, smtp_host, smtp_port, smtp_user, smtp_pass, smtp_from_email, smtp_from_name')
       .eq('user_id', userId)
       .single()
+
+    if (settingsError) {
+      console.error('Error loading user settings:', settingsError)
+      throw new Error(`Failed to load user settings: ${settingsError.message}. Please check your Settings page.`)
+    }
 
     const geminiApiKey = userSettings?.gemini_api_key || Deno.env.get('GEMINI_API_KEY')
 
     if (!geminiApiKey) {
-      throw new Error('Gemini API key not found. Please add it in Settings.')
+      throw new Error('Gemini API key not found. Please add it in Settings page.')
     }
+
+    // Get SMTP settings from user settings or environment variables
+    const smtpConfig = {
+      host: userSettings?.smtp_host || Deno.env.get('SMTP_HOST'),
+      port: userSettings?.smtp_port || Deno.env.get('SMTP_PORT') || '587',
+      user: userSettings?.smtp_user || Deno.env.get('SMTP_USER'),
+      pass: userSettings?.smtp_pass || Deno.env.get('SMTP_PASS'),
+      fromEmail: userSettings?.smtp_from_email || userSettings?.smtp_user || Deno.env.get('SMTP_USER'),
+      fromName: userSettings?.smtp_from_name || campaign.sender_name
+    }
+
+    console.log('SMTP config check:', {
+      hasHost: !!smtpConfig.host,
+      hasUser: !!smtpConfig.user,
+      hasPass: !!smtpConfig.pass,
+      host: smtpConfig.host,
+      port: smtpConfig.port,
+      user: smtpConfig.user ? smtpConfig.user.substring(0, 3) + '***' : null
+    })
+
+    if (!smtpConfig.host || !smtpConfig.user || !smtpConfig.pass) {
+      const missing = []
+      if (!smtpConfig.host) missing.push('SMTP Host')
+      if (!smtpConfig.user) missing.push('SMTP Username')
+      if (!smtpConfig.pass) missing.push('SMTP Password')
+      throw new Error(`Missing SMTP configuration: ${missing.join(', ')}. Please configure SMTP settings in Settings page.`)
+    }
+
+    console.log('SMTP config loaded:', { host: smtpConfig.host, port: smtpConfig.port, user: smtpConfig.user })
 
     // 6. Generate personalized emails for each recipient
     console.log('Generating personalized emails...')
@@ -171,6 +207,7 @@ Deno.serve(async (req) => {
           to: recipient.companies.email,
           subject: personalizedEmail.subject,
           html: personalizedEmail.body.replace(/\n/g, '<br>'),
+          text: personalizedEmail.body,
           companyName: recipient.companies.company_name
         })
 
@@ -187,61 +224,65 @@ Deno.serve(async (req) => {
 
     console.log(`Generated ${emailsToSend.length} emails, ${failedGenerations.length} failed`)
 
-    // 7. Send emails using Resend API
-    console.log('Sending emails...')
+    // 7. Send emails using SMTP with batch processing and real-time updates
+    console.log('Sending emails via SMTP...')
     let sentCount = 0
     let failedCount = 0
+    const BATCH_SIZE = 10 // Process 10 emails at a time for better progress tracking
+    const UPDATE_INTERVAL = 5 // Update campaign stats every 5 emails
 
-    const resendApiKey = Deno.env.get('RESEND_API_KEY')
-    if (!resendApiKey) {
-      console.error('RESEND_API_KEY not set in environment variables')
-      throw new Error('RESEND_API_KEY environment variable not set. Please add it in Supabase Edge Functions settings.')
-    }
-    console.log('Resend API key found, proceeding with email sending...')
+    for (let i = 0; i < emailsToSend.length; i++) {
+      const email = emailsToSend[i]
 
-    for (const email of emailsToSend) {
       try {
-        const response = await fetch('https://api.resend.com/emails', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${resendApiKey}`,
-            'Content-Type': 'application/json'
+        await sendEmailSMTP({
+          from: {
+            email: smtpConfig.fromEmail,
+            name: smtpConfig.fromName
           },
-          body: JSON.stringify({
-            from: 'onboarding@resend.dev', // Update with your verified domain
-            to: email.to,
-            subject: email.subject,
-            html: email.html
-          })
+          to: email.to,
+          subject: email.subject,
+          html: email.html,
+          text: email.text,
+          smtpConfig
         })
 
-        if (response.ok) {
-          // Email sent successfully
-          const { error: updateError } = await supabase
-            .from('campaign_recipients')
-            .update({
-              status: 'sent',
-              sent_at: new Date().toISOString(),
-              personalized_email: {
-                subject: email.subject,
-                body: email.html
-              }
-            })
-            .eq('id', email.recipientId)
+        // Email sent successfully - update immediately
+        const { error: updateError } = await supabase
+          .from('campaign_recipients')
+          .update({
+            status: 'sent',
+            sent_at: new Date().toISOString(),
+            personalized_email: {
+              subject: email.subject,
+              body: email.html
+            }
+          })
+          .eq('id', email.recipientId)
 
-          if (updateError) {
-            console.error(`Failed to update recipient ${email.recipientId} to sent:`, updateError)
-          }
-
-          sentCount++
-          console.log(`✓ Sent email to ${email.companyName}`)
-        } else {
-          const errorText = await response.text()
-          console.error(`Resend API error for ${email.companyName}:`, response.status, errorText)
-          throw new Error(`Resend API error: ${response.statusText} - ${errorText}`)
+        if (updateError) {
+          console.error(`Failed to update recipient ${email.recipientId} to sent:`, updateError)
         }
+
+        sentCount++
+        console.log(`✓ Sent ${sentCount}/${emailsToSend.length} - ${email.companyName}`)
+
+        // Update campaign progress every UPDATE_INTERVAL emails or on last email
+        if (sentCount % UPDATE_INTERVAL === 0 || i === emailsToSend.length - 1) {
+          await supabase
+            .from('campaigns')
+            .update({
+              emails_sent: sentCount,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', campaignId)
+          console.log(`📊 Progress updated: ${sentCount} sent, ${failedCount} failed`)
+        }
+
+        // Small delay between sends to avoid overwhelming SMTP server (0.5 seconds)
+        await new Promise(resolve => setTimeout(resolve, 500))
       } catch (error) {
-        // Email failed to send
+        // Email failed to send - update immediately
         console.error(`✗ Failed to send email to ${email.companyName}:`, error.message)
 
         const { error: updateError } = await supabase
@@ -254,6 +295,22 @@ Deno.serve(async (req) => {
         }
 
         failedCount++
+        console.log(`❌ Failed ${failedCount}/${emailsToSend.length}`)
+
+        // Update campaign progress for failures too
+        if ((sentCount + failedCount) % UPDATE_INTERVAL === 0 || i === emailsToSend.length - 1) {
+          await supabase
+            .from('campaigns')
+            .update({
+              emails_sent: sentCount,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', campaignId)
+          console.log(`📊 Progress updated: ${sentCount} sent, ${failedCount} failed`)
+        }
+
+        // Shorter delay after failure (0.2 seconds) to continue quickly
+        await new Promise(resolve => setTimeout(resolve, 200))
       }
     }
 
@@ -276,7 +333,7 @@ Deno.serve(async (req) => {
       })
       .eq('id', campaignId)
 
-    console.log('Campaign sending completed!')
+    console.log(`🎉 Campaign sending completed! Total: ${enrichedRecipients.length}, Sent: ${sentCount}, Failed: ${failedCount}`)
 
     return new Response(
       JSON.stringify({
@@ -290,14 +347,182 @@ Deno.serve(async (req) => {
     )
 
   } catch (error) {
-    console.error('Error in send-campaign:', error)
+    console.error('❌ Error in send-campaign:', error)
+
+    // Try to update campaign status to failed (only if we have campaignId)
+    try {
+      const { campaignId: errorCampaignId } = await req.json()
+      if (errorCampaignId) {
+        await supabase
+          .from('campaigns')
+          .update({
+            status: 'failed',
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', errorCampaignId)
+      }
+    } catch (updateError) {
+      console.error('Failed to update campaign status to failed:', updateError)
+    }
 
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({
+        success: false,
+        error: error.message
+      }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
 })
+
+// Helper function to send email via SMTP with timeout
+async function sendEmailSMTP(params: {
+  from: { email: string; name: string }
+  to: string
+  subject: string
+  html: string
+  text: string
+  smtpConfig: any
+}) {
+  const { from, to, subject, html, text, smtpConfig } = params
+
+  // Connect to SMTP server
+  let conn: Deno.TcpConn | Deno.TlsConn
+
+  // Timeout wrapper for async operations (30 seconds)
+  const withTimeout = <T>(promise: Promise<T>, timeoutMs: number = 30000): Promise<T> => {
+    return Promise.race([
+      promise,
+      new Promise<T>((_, reject) =>
+        setTimeout(() => reject(new Error(`Operation timed out after ${timeoutMs}ms`)), timeoutMs)
+      )
+    ])
+  }
+
+  try {
+    // For port 465 (SSL), use TLS from the start
+    if (smtpConfig.port === '465' || smtpConfig.port === 465) {
+      conn = await withTimeout(
+        Deno.connectTls({
+          hostname: smtpConfig.host,
+          port: parseInt(smtpConfig.port)
+        }),
+        10000 // 10 second timeout for connection
+      )
+    } else {
+      // For port 587 (TLS), start with regular TCP
+      conn = await withTimeout(
+        Deno.connect({
+          hostname: smtpConfig.host,
+          port: parseInt(smtpConfig.port)
+        }),
+        10000 // 10 second timeout for connection
+      )
+    }
+
+    // Helper function to read SMTP response with timeout
+    const readResponse = async (): Promise<string> => {
+      const buffer = new Uint8Array(4096)
+      const n = await withTimeout(conn.read(buffer), 5000) // 5 second timeout
+      if (!n) throw new Error('Connection closed')
+      return new TextDecoder().decode(buffer.subarray(0, n))
+    }
+
+    // Helper function to send SMTP command with timeout
+    const sendCommand = async (command: string): Promise<string> => {
+      await withTimeout(conn.write(new TextEncoder().encode(command + '\r\n')), 5000)
+      return await readResponse()
+    }
+
+    // SMTP conversation (reduced logging for bulk sends)
+    let response = await readResponse() // Read initial greeting
+
+    // EHLO
+    response = await sendCommand(`EHLO ${smtpConfig.host}`)
+
+    // STARTTLS (only for port 587)
+    if (smtpConfig.port === '587' || smtpConfig.port === 587) {
+      response = await sendCommand('STARTTLS')
+
+      // Upgrade to TLS
+      conn = await Deno.startTls(conn as Deno.TcpConn, {
+        hostname: smtpConfig.host
+      })
+
+      // Send EHLO again after TLS
+      response = await sendCommand(`EHLO ${smtpConfig.host}`)
+    }
+
+    // AUTH LOGIN
+    response = await sendCommand('AUTH LOGIN')
+
+    // Send username (base64)
+    response = await sendCommand(btoa(smtpConfig.user))
+
+    // Send password (base64)
+    response = await sendCommand(btoa(smtpConfig.pass))
+
+    if (!response.startsWith('235')) {
+      throw new Error('SMTP authentication failed: ' + response)
+    }
+
+    // MAIL FROM
+    response = await sendCommand(`MAIL FROM:<${from.email}>`)
+
+    // RCPT TO
+    response = await sendCommand(`RCPT TO:<${to}>`)
+
+    // DATA
+    response = await sendCommand('DATA')
+
+    // Build email message
+    const boundary = '----=_Part_' + Date.now()
+    const message = [
+      `From: ${from.name} <${from.email}>`,
+      `To: ${to}`,
+      `Subject: ${subject}`,
+      `MIME-Version: 1.0`,
+      `Content-Type: multipart/alternative; boundary="${boundary}"`,
+      '',
+      `--${boundary}`,
+      `Content-Type: text/plain; charset=utf-8`,
+      `Content-Transfer-Encoding: quoted-printable`,
+      '',
+      text,
+      '',
+      `--${boundary}`,
+      `Content-Type: text/html; charset=utf-8`,
+      `Content-Transfer-Encoding: quoted-printable`,
+      '',
+      html,
+      '',
+      `--${boundary}--`,
+      '.'
+    ].join('\r\n')
+
+    // Send message
+    await conn.write(new TextEncoder().encode(message + '\r\n'))
+    response = await readResponse()
+
+    if (!response.startsWith('250')) {
+      throw new Error('Failed to send email: ' + response)
+    }
+
+    // QUIT
+    await sendCommand('QUIT')
+
+    conn.close()
+  } catch (error) {
+    if (conn) {
+      try {
+        conn.close()
+      } catch (e) {
+        // Ignore close errors
+      }
+    }
+    throw new Error(`SMTP error: ${error.message}`)
+  }
+}
 
 // Helper function to generate personalized email using Gemini with retry logic
 async function generatePersonalizedEmail(params: {
