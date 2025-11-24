@@ -40,18 +40,28 @@ serve(async (req) => {
       )
     }
 
-    // Get all subscriptions
+    // Get all subscriptions using raw SQL for foreign table
     const { data: subscriptions, error } = await supabase
-      .from('subscriptions')
-      .select('user_id, tier, status, current_period_end, email_count_this_month')
-      .order('current_period_end', { ascending: false })
-      .limit(100)
+      .rpc('get_all_subscriptions')
 
     if (error) {
-      console.error('Error fetching subscriptions:', error)
+      // Fallback: try direct query
+      const { data: fallbackData, error: fallbackError } = await supabase
+        .from('subscriptions')
+        .select('user_id, tier, status, current_period_end, email_count_this_month')
+        .limit(100)
+
+      if (fallbackError) {
+        console.error('Error fetching subscriptions:', fallbackError)
+        return new Response(
+          JSON.stringify({ error: 'Failed to fetch users', details: fallbackError.message }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
       return new Response(
-        JSON.stringify({ error: 'Failed to fetch users' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ users: fallbackData || [] }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 

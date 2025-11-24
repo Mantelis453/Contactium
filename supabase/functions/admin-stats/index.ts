@@ -41,9 +41,13 @@ serve(async (req) => {
     }
 
     // Get stats
-    const { count: userCount } = await supabase
+    const { count: userCount, error: userCountError } = await supabase
       .from('subscriptions')
       .select('*', { count: 'exact', head: true })
+
+    if (userCountError) {
+      console.error('Error counting users:', userCountError)
+    }
 
     const { count: campaignCount } = await supabase
       .from('campaigns')
