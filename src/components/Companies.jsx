@@ -54,14 +54,21 @@ export default function Companies() {
   // Check if user has access to Companies page (Starter or Professional plan)
   const hasAccess = subscription?.tier === 'starter' || subscription?.tier === 'professional'
 
-  // Debounce search query - wait 500ms after user stops typing
+  // Debounce search query - wait 300ms after user stops typing
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearch(searchQuery)
-    }, 500)
+    }, 300)
 
     return () => clearTimeout(timer)
   }, [searchQuery])
+
+  // Handle instant search on Enter key
+  const handleSearchKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      setDebouncedSearch(searchQuery)
+    }
+  }
 
   useEffect(() => {
     loadAvailableTags()
@@ -684,6 +691,7 @@ ${details.employeeCount ? `👔 Employees: ~${details.employeeCount}` : ''}`
           type="text"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
+          onKeyDown={handleSearchKeyDown}
           placeholder="Search by name, code, or email..."
           className="search-input"
         />
