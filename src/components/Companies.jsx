@@ -54,21 +54,19 @@ export default function Companies() {
   // Check if user has access to Companies page (Starter or Professional plan)
   const hasAccess = subscription?.tier === 'starter' || subscription?.tier === 'professional'
 
-  // Debounce search query - wait 300ms after user stops typing
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearch(searchQuery)
-    }, 300)
-
-    return () => clearTimeout(timer)
-  }, [searchQuery])
-
-  // Handle instant search on Enter key
+  // Handle search - only search on Enter key press
   const handleSearchKeyDown = (e) => {
     if (e.key === 'Enter') {
       setDebouncedSearch(searchQuery)
     }
   }
+
+  // Clear search when input is emptied
+  useEffect(() => {
+    if (searchQuery === '' && debouncedSearch !== '') {
+      setDebouncedSearch('')
+    }
+  }, [searchQuery])
 
   useEffect(() => {
     loadAvailableTags()
