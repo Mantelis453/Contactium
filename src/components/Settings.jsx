@@ -15,9 +15,6 @@ export default function Settings() {
     sender_name: '',
     sender_email: '',
     daily_limit: 100,
-    ai_provider: 'openai',
-    openai_api_key: '',
-    gemini_api_key: '',
     email_language: 'English',
     email_tone: 'professional',
     email_length: 'medium',
@@ -60,9 +57,6 @@ export default function Settings() {
           sender_name: data.sender_name ?? '',
           sender_email: data.sender_email ?? '',
           daily_limit: data.daily_limit ?? 100,
-          ai_provider: data.ai_provider ?? 'openai',
-          openai_api_key: data.openai_api_key ?? '',
-          gemini_api_key: data.gemini_api_key ?? '',
           email_language: data.email_language ?? 'English',
           email_tone: data.email_tone ?? 'professional',
           email_length: data.email_length ?? 'medium',
@@ -142,9 +136,6 @@ export default function Settings() {
             sender_name: settings.sender_name,
             sender_email: settings.sender_email,
             daily_limit: parseInt(settings.daily_limit),
-            ai_provider: settings.ai_provider,
-            openai_api_key: settings.openai_api_key,
-            gemini_api_key: settings.gemini_api_key,
             email_language: settings.email_language,
             email_tone: settings.email_tone,
             email_length: settings.email_length,
@@ -174,9 +165,6 @@ export default function Settings() {
             sender_name: settings.sender_name,
             sender_email: settings.sender_email,
             daily_limit: parseInt(settings.daily_limit),
-            ai_provider: settings.ai_provider,
-            openai_api_key: settings.openai_api_key,
-            gemini_api_key: settings.gemini_api_key,
             email_language: settings.email_language,
             email_tone: settings.email_tone,
             email_length: settings.email_length,
@@ -385,74 +373,16 @@ export default function Settings() {
           </div>
         </div>
 
-        {/* AI Configuration */}
+        {/* AI Configuration - Info Only */}
         <div className="settings-section highlighted">
           <div className="section-header">
-            <h3>🤖 AI Provider</h3>
-            <p className="section-description">Choose which AI will write your emails</p>
+            <h3>🤖 AI Email Generation</h3>
+            <p className="section-description">Powered by Google Gemini 2.5 Flash</p>
           </div>
 
-          <div className="form-group">
-            <label>Select AI Provider <span className="required">*</span></label>
-            <div className="radio-group">
-              <label className="radio-option">
-                <input
-                  type="radio"
-                  name="ai_provider"
-                  value="openai"
-                  checked={settings.ai_provider === 'openai'}
-                  onChange={handleChange}
-                />
-                <div className="radio-content">
-                  <strong>OpenAI GPT-4</strong>
-                  <span className="radio-description">Best for English emails, highly creative</span>
-                </div>
-              </label>
-              <label className="radio-option">
-                <input
-                  type="radio"
-                  name="ai_provider"
-                  value="gemini"
-                  checked={settings.ai_provider === 'gemini'}
-                  onChange={handleChange}
-                />
-                <div className="radio-content">
-                  <strong>Google Gemini 2.5 Flash</strong>
-                  <span className="radio-description">Fast, supports 60+ languages</span>
-                </div>
-              </label>
-            </div>
+          <div className="info-box">
+            AI email generation is included with your paid plan. No API key required - we handle everything for you.
           </div>
-
-          {settings.ai_provider === 'openai' ? (
-            <div className="form-group">
-              <label>OpenAI API Key <span className="required">*</span></label>
-              <input
-                type="password"
-                name="openai_api_key"
-                value={settings.openai_api_key}
-                onChange={handleChange}
-                placeholder="sk-proj-..."
-              />
-              <p className="help-text">
-                🔑 Get your key from <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer">OpenAI Platform</a>
-              </p>
-            </div>
-          ) : (
-            <div className="form-group">
-              <label>Google Gemini API Key <span className="required">*</span></label>
-              <input
-                type="password"
-                name="gemini_api_key"
-                value={settings.gemini_api_key}
-                onChange={handleChange}
-                placeholder="AIza..."
-              />
-              <p className="help-text">
-                🔑 Get your key from <a href="https://makersuite.google.com/app/apikey" target="_blank" rel="noopener noreferrer">Google AI Studio</a> (Free tier available)
-              </p>
-            </div>
-          )}
         </div>
 
         {/* Email Generation Settings */}

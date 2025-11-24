@@ -1,4 +1,8 @@
 import { supabase } from './supabase'
+import API_URL from '../config/api'
+
+// This service now calls the server-side API which uses Gemini
+// AI features are only available to paid users (Starter or Professional plans)
 
 const getToneGuidelines = (tone) => {
   const tones = {
@@ -450,61 +454,48 @@ export async function generatePersonalizedEmail({
   callToAction
 }) {
   try {
-    // Get user's AI settings
+    // Get current user
     const { data: { user } } = await supabase.auth.getUser()
 
-    const { data: settings, error: settingsError } = await supabase
-      .from('user_settings')
-      .select('ai_provider, openai_api_key, gemini_api_key, email_language, email_tone, email_length, personalization_level')
-      .eq('user_id', user.id)
-      .single()
-
-    // PGRST116 means no rows found - user hasn't configured settings yet
-    if (settingsError && settingsError.code !== 'PGRST116') {
-      throw new Error('Failed to load AI settings')
+    if (!user) {
+      throw new Error('Please log in to generate emails')
     }
 
-    // Check if user has configured settings at all
-    if (!settings) {
-      throw new Error('Please configure your AI settings in Settings page')
-    }
-
-    const provider = settings.ai_provider || 'openai'
-    const prompt = createEmailPrompt({
-      category,
-      description,
-      companyName: company.company_name,
-      companyIndustry: company.activity,
-      senderName,
-      senderCompany,
-      senderTitle,
-      valueProposition,
-      callToAction,
-      language: settings.email_language || 'English',
-      tone: settings.email_tone || 'professional',
-      length: settings.email_length || 'medium',
-      personalization: settings.personalization_level || 'high'
+    // Call server-side AI generation endpoint
+    // Server handles subscription check and uses Gemini API
+    const response = await fetch(`${API_URL}/api/ai/generate-email`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        userId: user.id,
+        params: {
+          category,
+          description,
+          companyName: company.company_name,
+          companyIndustry: company.activity,
+          senderName,
+          senderCompany,
+          senderTitle,
+          valueProposition,
+          callToAction
+        }
+      })
     })
 
-    let content
+    const data = await response.json()
 
-    if (provider === 'gemini') {
-      if (!settings.gemini_api_key || settings.gemini_api_key.trim() === '') {
-        throw new Error('Please add your Google Gemini API key in Settings')
-      }
-      content = await generateWithGemini(settings.gemini_api_key, prompt)
-    } else {
-      // Default to OpenAI
-      if (!settings.openai_api_key || settings.openai_api_key.trim() === '') {
-        throw new Error('Please add your OpenAI API key in Settings')
-      }
-      content = await generateWithOpenAI(settings.openai_api_key, prompt)
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to generate email')
     }
 
-    return parseEmailResponse(content)
+    return {
+      subject: data.subject,
+      body: data.body
+    }
   } catch (error) {
     console.error('Error generating AI email:', error)
-    // Re-throw the error so the component can handle it
     throw error
   }
 }

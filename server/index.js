@@ -644,6 +644,214 @@ app.get('/api/companies/activities', async (req, res) => {
   }
 })
 
+// AI Email Generation endpoint
+// Uses server-side Gemini API key - only available to paid users
+app.post('/api/ai/generate-email', async (req, res) => {
+  try {
+    const { userId, params } = req.body
+
+    if (!userId) {
+      return res.status(400).json({ error: 'User ID required' })
+    }
+
+    // Check if user has a paid subscription
+    const { data: subscription, error: subError } = await supabase
+      .from('subscriptions')
+      .select('tier, status')
+      .eq('user_id', userId)
+      .single()
+
+    if (subError && subError.code !== 'PGRST116') {
+      console.error('Error checking subscription:', subError)
+      return res.status(500).json({ error: 'Failed to verify subscription' })
+    }
+
+    // Check if user has paid plan (starter or professional)
+    const hasPaidPlan = subscription &&
+      (subscription.tier === 'starter' || subscription.tier === 'professional') &&
+      subscription.status === 'active'
+
+    if (!hasPaidPlan) {
+      return res.status(403).json({
+        error: 'AI email generation requires a paid plan. Please upgrade to Starter or Professional to use this feature.'
+      })
+    }
+
+    // Get user's email settings for language, tone, etc.
+    const { data: settings } = await supabase
+      .from('user_settings')
+      .select('email_language, email_tone, email_length, personalization_level')
+      .eq('user_id', userId)
+      .single()
+
+    const emailSettings = {
+      language: settings?.email_language || 'English',
+      tone: settings?.email_tone || 'professional',
+      length: settings?.email_length || 'medium',
+      personalization: settings?.personalization_level || 'high'
+    }
+
+    // Generate email using Gemini
+    const geminiApiKey = process.env.GEMINI_API_KEY
+    if (!geminiApiKey) {
+      console.error('GEMINI_API_KEY not configured')
+      return res.status(500).json({ error: 'AI service not configured' })
+    }
+
+    const prompt = createEmailPrompt({ ...params, ...emailSettings })
+    const content = await generateWithGemini(geminiApiKey, prompt)
+    const result = parseEmailResponse(content)
+
+    res.json({ success: true, ...result })
+  } catch (error) {
+    console.error('Error generating email:', error)
+    res.status(500).json({ error: error.message || 'Failed to generate email' })
+  }
+})
+
+// Helper functions for AI generation
+const getToneGuidelines = (tone) => {
+  const tones = {
+    casual: {
+      description: 'friendly and conversational',
+      examples: 'Use contractions, casual phrases, and a warm voice',
+      avoid: 'Overly formal language, complex jargon'
+    },
+    professional: {
+      description: 'balanced and respectful',
+      examples: 'Clear, direct language. Professional but warm',
+      avoid: 'Too casual or too formal'
+    },
+    formal: {
+      description: 'traditional and polished',
+      examples: 'Complete sentences, proper titles, traditional business language',
+      avoid: 'Casual language, contractions'
+    }
+  }
+  return tones[tone] || tones.professional
+}
+
+const getLengthGuidelines = (length) => {
+  const lengths = {
+    short: { words: '100-150', sentences: '4-6', paragraphs: '2-3' },
+    medium: { words: '150-200', sentences: '6-8', paragraphs: '3-4' },
+    long: { words: '200-250', sentences: '8-10', paragraphs: '4-5' }
+  }
+  return lengths[length] || lengths.medium
+}
+
+const getPersonalizationGuidelines = (level) => {
+  const levels = {
+    low: 'Use the company name and basic industry reference.',
+    medium: 'Reference the company name, industry context, and make educated assumptions about their challenges.',
+    high: 'Deeply personalize by mentioning specific aspects of their business, industry trends, and company-specific details.'
+  }
+  return levels[level] || levels.medium
+}
+
+const createEmailPrompt = (params) => {
+  const {
+    category,
+    description,
+    companyName,
+    companyIndustry,
+    senderName,
+    senderCompany,
+    senderTitle,
+    valueProposition,
+    callToAction,
+    language,
+    tone,
+    length,
+    personalization
+  } = params
+
+  const toneGuide = getToneGuidelines(tone)
+  const lengthGuide = getLengthGuidelines(length)
+  const personalizationGuide = getPersonalizationGuidelines(personalization)
+
+  return `You are an elite B2B cold email copywriter. Create a personalized cold email with these specifications:
+
+TARGET: ${companyName} (${companyIndustry || 'Not specified'})
+SENDER: ${senderName}, ${senderTitle} at ${senderCompany}
+
+CAMPAIGN:
+- Category: ${category}
+- Description: ${description}
+- Value Proposition: ${valueProposition}
+- Call-to-Action: ${callToAction}
+
+WRITING STYLE:
+- Language: ${language}
+- Tone: ${tone} (${toneGuide.description})
+- Length: ${lengthGuide.words} words, ${lengthGuide.paragraphs} paragraphs
+- Personalization: ${personalizationGuide}
+
+REQUIREMENTS:
+- Write entirely in ${language}
+- Subject line max 50 characters, specific to ${companyName}
+- Use appropriate greeting (no [Name] placeholders)
+- Mention ${companyName} in the body
+- End with clear CTA: ${callToAction}
+- Sign with: ${senderName}
+
+OUTPUT FORMAT:
+SUBJECT: [subject line]
+BODY: [email body starting with greeting]
+
+Do NOT include explanations, just the email.`
+}
+
+async function generateWithGemini(apiKey, prompt) {
+  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      contents: [{
+        parts: [{ text: prompt }]
+      }],
+      generationConfig: {
+        temperature: 0.5,
+        maxOutputTokens: 2048,
+        topP: 0.9,
+        topK: 40
+      }
+    })
+  })
+
+  if (!response.ok) {
+    const errorData = await response.json()
+    console.error('Gemini API error:', errorData)
+    throw new Error(errorData.error?.message || 'Failed to generate email')
+  }
+
+  const data = await response.json()
+
+  if (!data.candidates?.[0]?.content?.parts?.[0]?.text) {
+    throw new Error('Invalid response from Gemini API')
+  }
+
+  return data.candidates[0].content.parts[0].text
+}
+
+function parseEmailResponse(content) {
+  const subjectMatch = content.match(/SUBJECT:\s*(.+?)(?:\n|$)/i)
+  const bodyMatch = content.match(/BODY:\s*([\s\S]+)/i)
+
+  const subject = subjectMatch ? subjectMatch[1].trim() : 'Partnership Opportunity'
+  let body = bodyMatch ? bodyMatch[1].trim() : content
+
+  // Remove any accidental subject repetition
+  if (subject && body) {
+    const subjectPattern = new RegExp(`^SUBJECT:\\s*${subject.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*`, 'i')
+    body = body.replace(subjectPattern, '').trim()
+  }
+
+  return { subject, body }
+}
+
 // Health check endpoint
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'Email API server is running' })
