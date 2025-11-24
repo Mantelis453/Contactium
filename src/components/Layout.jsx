@@ -1,6 +1,7 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { useSubscription } from '../contexts/SubscriptionContext'
+import SupportButton from './SupportButton'
 import '../styles/Layout.css'
 
 export default function Layout({ children }) {
@@ -81,6 +82,7 @@ export default function Layout({ children }) {
       <main className="main-content">
         {children}
       </main>
+      <SupportButton />
     </div>
   )
 }

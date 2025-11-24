@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import SupportButton from './SupportButton'
 import '../styles/Help.css'
 
 export default function Help() {
@@ -574,9 +575,7 @@ Best regards,
 
           <div className="help-footer">
             <p>Can't find what you're looking for?</p>
-            <button onClick={() => setActiveSection('support')} className="primary-btn">
-              Contact Support
-            </button>
+            <SupportButton variant="inline" />
           </div>
         </main>
       </div>
