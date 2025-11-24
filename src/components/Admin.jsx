@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
-import API_URL from '../config/api'
 import '../styles/Admin.css'
 
 export default function Admin() {
@@ -65,14 +64,21 @@ export default function Admin() {
 
   const loadStats = async () => {
     try {
-      // Use server endpoint to get stats (bypasses RLS)
-      const response = await fetch(`${API_URL}/api/admin/stats?userId=${user.id}`)
-      const data = await response.json()
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-stats?userId=${user.id}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      )
+      const statsData = await response.json()
 
       if (response.ok) {
-        setStats(data)
+        setStats(statsData)
       } else {
-        console.error('Error loading stats:', data.error)
+        console.error('Error loading stats:', statsData.error)
       }
     } catch (error) {
       console.error('Error loading stats:', error)
@@ -101,8 +107,15 @@ export default function Admin() {
 
   const loadUsers = async () => {
     try {
-      // Use server endpoint to get users (bypasses RLS)
-      const response = await fetch(`${API_URL}/api/admin/users?userId=${user.id}`)
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-users?userId=${user.id}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      )
       const data = await response.json()
 
       if (response.ok) {
