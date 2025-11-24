@@ -40,9 +40,9 @@ serve(async (req) => {
       )
     }
 
-    // Get stats
+    // Get stats from user_settings
     const { count: userCount, error: userCountError } = await supabase
-      .from('subscriptions')
+      .from('user_settings')
       .select('*', { count: 'exact', head: true })
 
     if (userCountError) {

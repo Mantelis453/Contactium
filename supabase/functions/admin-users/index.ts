@@ -40,33 +40,32 @@ serve(async (req) => {
       )
     }
 
-    // Get all subscriptions using raw SQL for foreign table
-    const { data: subscriptions, error } = await supabase
-      .rpc('get_all_subscriptions')
+    // Get all user settings (subscription data)
+    const { data: users, error } = await supabase
+      .from('user_settings')
+      .select('user_id, subscription_tier, subscription_status, subscription_end_date, emails_sent_this_month')
+      .order('created_at', { ascending: false })
+      .limit(100)
 
     if (error) {
-      // Fallback: try direct query
-      const { data: fallbackData, error: fallbackError } = await supabase
-        .from('subscriptions')
-        .select('user_id, tier, status, current_period_end, email_count_this_month')
-        .limit(100)
-
-      if (fallbackError) {
-        console.error('Error fetching subscriptions:', fallbackError)
-        return new Response(
-          JSON.stringify({ error: 'Failed to fetch users', details: fallbackError.message }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        )
-      }
-
+      console.error('Error fetching users:', error)
       return new Response(
-        JSON.stringify({ users: fallbackData || [] }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ error: 'Failed to fetch users', details: error.message }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
+    // Map to expected format
+    const mappedUsers = (users || []).map(u => ({
+      user_id: u.user_id,
+      tier: u.subscription_tier || 'free',
+      status: u.subscription_status || 'active',
+      current_period_end: u.subscription_end_date,
+      email_count_this_month: u.emails_sent_this_month || 0
+    }))
+
     return new Response(
-      JSON.stringify({ users: subscriptions || [] }),
+      JSON.stringify({ users: mappedUsers }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   } catch (error) {
