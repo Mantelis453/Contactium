@@ -68,7 +68,7 @@ export default function Admin() {
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-stats?userId=${user.id}`,
         {
           headers: {
-            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
             'Content-Type': 'application/json'
           }
         }
@@ -111,7 +111,7 @@ export default function Admin() {
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-users?userId=${user.id}`,
         {
           headers: {
-            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
             'Content-Type': 'application/json'
           }
         }
