@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
+import API_URL from '../config/api'
 import '../styles/Admin.css'
 
 export default function Admin() {
@@ -64,20 +65,15 @@ export default function Admin() {
 
   const loadStats = async () => {
     try {
-      // Get open support tickets (admin can see these)
-      const { count: openTickets } = await supabase
-        .from('support_messages')
-        .select('*', { count: 'exact', head: true })
-        .in('status', ['open', 'in_progress'])
+      // Use server endpoint to get stats (bypasses RLS)
+      const response = await fetch(`${API_URL}/api/admin/stats?userId=${user.id}`)
+      const data = await response.json()
 
-      // For other stats, we'll use what we can access
-      // These will be 0 if RLS blocks access - that's ok
-      setStats({
-        totalUsers: users.length || 0,
-        totalCampaigns: 0,
-        totalEmails: 0,
-        openTickets: openTickets || 0
-      })
+      if (response.ok) {
+        setStats(data)
+      } else {
+        console.error('Error loading stats:', data.error)
+      }
     } catch (error) {
       console.error('Error loading stats:', error)
     }
@@ -105,26 +101,16 @@ export default function Admin() {
 
   const loadUsers = async () => {
     try {
-      // Note: This requires adding RLS policy for admins to view subscriptions
-      // For now, this will show empty if RLS blocks access
-      const { data, error } = await supabase
-        .from('subscriptions')
-        .select(`
-          user_id,
-          tier,
-          status,
-          current_period_end,
-          email_count_this_month
-        `)
-        .order('current_period_end', { ascending: false })
-        .limit(100)
+      // Use server endpoint to get users (bypasses RLS)
+      const response = await fetch(`${API_URL}/api/admin/users?userId=${user.id}`)
+      const data = await response.json()
 
-      if (error) {
-        console.warn('Could not load users (RLS may be blocking):', error.message)
+      if (response.ok) {
+        setUsers(data.users || [])
+      } else {
+        console.error('Error loading users:', data.error)
         setUsers([])
-        return
       }
-      setUsers(data || [])
     } catch (error) {
       console.error('Error loading users:', error)
       setUsers([])

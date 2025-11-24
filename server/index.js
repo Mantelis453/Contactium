@@ -852,6 +852,97 @@ function parseEmailResponse(content) {
   return { subject, body }
 }
 
+// Admin endpoint to get users (uses service role to bypass RLS)
+app.get('/api/admin/users', async (req, res) => {
+  try {
+    const { userId } = req.query
+
+    if (!userId) {
+      return res.status(400).json({ error: 'User ID required' })
+    }
+
+    // Check if user is admin
+    const { data: adminCheck } = await supabase
+      .from('admin_users')
+      .select('role')
+      .eq('user_id', userId)
+      .single()
+
+    if (!adminCheck) {
+      return res.status(403).json({ error: 'Admin access required' })
+    }
+
+    // Get all subscriptions using service role
+    const { data: subscriptions, error } = await supabase
+      .from('subscriptions')
+      .select('user_id, tier, status, current_period_end, email_count_this_month')
+      .order('current_period_end', { ascending: false })
+      .limit(100)
+
+    if (error) {
+      console.error('Error fetching subscriptions:', error)
+      return res.status(500).json({ error: 'Failed to fetch users' })
+    }
+
+    res.json({ users: subscriptions || [] })
+  } catch (error) {
+    console.error('Error in admin users endpoint:', error)
+    res.status(500).json({ error: error.message })
+  }
+})
+
+// Admin stats endpoint
+app.get('/api/admin/stats', async (req, res) => {
+  try {
+    const { userId } = req.query
+
+    if (!userId) {
+      return res.status(400).json({ error: 'User ID required' })
+    }
+
+    // Check if user is admin
+    const { data: adminCheck } = await supabase
+      .from('admin_users')
+      .select('role')
+      .eq('user_id', userId)
+      .single()
+
+    if (!adminCheck) {
+      return res.status(403).json({ error: 'Admin access required' })
+    }
+
+    // Get stats using service role
+    const { count: userCount } = await supabase
+      .from('subscriptions')
+      .select('*', { count: 'exact', head: true })
+
+    const { count: campaignCount } = await supabase
+      .from('campaigns')
+      .select('*', { count: 'exact', head: true })
+
+    const { data: emailData } = await supabase
+      .from('campaigns')
+      .select('emails_sent')
+
+    const totalEmails = emailData?.reduce((sum, c) => sum + (c.emails_sent || 0), 0) || 0
+
+    const { count: openTickets } = await supabase
+      .from('support_messages')
+      .select('*', { count: 'exact', head: true })
+      .in('status', ['open', 'in_progress'])
+
+    res.json({
+      totalUsers: userCount || 0,
+      totalCampaigns: campaignCount || 0,
+      totalEmails,
+      openTickets: openTickets || 0
+    })
+  } catch (error) {
+    console.error('Error in admin stats endpoint:', error)
+    res.status(500).json({ error: error.message })
+  }
+})
+
 // Health check endpoint
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'Email API server is running' })
