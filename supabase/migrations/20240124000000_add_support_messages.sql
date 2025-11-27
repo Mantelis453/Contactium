@@ -55,7 +55,6 @@ CREATE POLICY "Admins can update support messages" ON support_messages
   );
 
 -- Admin users policies
-CREATE POLICY "Admins can view admin_users" ON admin_users
-  FOR SELECT USING (
-    EXISTS (SELECT 1 FROM admin_users WHERE user_id = auth.uid())
-  );
+-- Note: Users can only view their own admin status to avoid infinite recursion
+CREATE POLICY "Users can view own admin status" ON admin_users
+  FOR SELECT USING (auth.uid() = user_id);
