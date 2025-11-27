@@ -69,12 +69,20 @@ export default function Admin() {
         .single()
 
       if (error && error.code !== 'PGRST116') {
-        console.error('Error checking admin access:', error)
+        console.error('Error checking admin access:', {
+          message: error.message,
+          code: error.code,
+          details: error.details,
+          hint: error.hint
+        })
       }
 
       setIsAdmin(!!data)
     } catch (error) {
-      console.error('Error:', error)
+      console.error('Error checking admin access:', {
+        message: error?.message || 'Unknown error',
+        error: error
+      })
     } finally {
       setLoading(false)
     }
@@ -360,8 +368,32 @@ export default function Admin() {
     return (
       <div className="page-container">
         <div className="admin-denied">
-          <h2>Access Denied</h2>
+          <h2>🔒 Access Denied</h2>
           <p>You don't have permission to access the admin panel.</p>
+          <div className="admin-info-box">
+            <h3>Need Admin Access?</h3>
+            <p>To grant admin access, run this SQL in your Supabase SQL Editor:</p>
+            <pre style={{
+              background: '#1e293b',
+              color: '#e2e8f0',
+              padding: '1rem',
+              borderRadius: '8px',
+              overflow: 'auto',
+              fontSize: '14px',
+              marginTop: '0.5rem'
+            }}>
+{`-- Find your user ID
+SELECT id, email FROM auth.users WHERE email = 'your@email.com';
+
+-- Make yourself admin (replace YOUR_USER_ID)
+INSERT INTO admin_users (user_id, role)
+VALUES ('YOUR_USER_ID', 'admin')
+ON CONFLICT (user_id) DO UPDATE SET role = 'admin';`}
+            </pre>
+            <p style={{ marginTop: '1rem', fontSize: '14px', color: '#64748b' }}>
+              📝 See <code>MAKE_ADMIN.sql</code> file in your project root for detailed instructions.
+            </p>
+          </div>
           <button onClick={() => navigate('/')} className="primary-btn">
             Go to Dashboard
           </button>
