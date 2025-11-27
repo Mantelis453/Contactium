@@ -159,7 +159,12 @@ export default function Admin() {
   const loadCoupons = async () => {
     try {
       const { data: { session } } = await supabase.auth.getSession()
-      if (!session) return
+      if (!session) {
+        console.error('No session found for loading coupons')
+        return
+      }
+
+      console.log('[Admin] Loading coupons for user:', user.id)
 
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-coupons`,
@@ -177,13 +182,30 @@ export default function Admin() {
       )
       const data = await response.json()
 
+      console.log('[Admin] Coupons response:', { ok: response.ok, status: response.status, data })
+
       if (response.ok) {
         setCoupons(data.data || [])
       } else {
-        console.error('Error loading coupons:', data.error)
+        console.error('Error loading coupons:', {
+          status: response.status,
+          error: data.error,
+          details: data.details
+        })
+        setCouponMessage({
+          type: 'error',
+          text: `Failed to load coupons: ${data.error || 'Unknown error'}`
+        })
       }
     } catch (error) {
-      console.error('Error loading coupons:', error)
+      console.error('Error loading coupons:', {
+        message: error.message,
+        error: error
+      })
+      setCouponMessage({
+        type: 'error',
+        text: `Failed to load coupons: ${error.message}`
+      })
     }
   }
 

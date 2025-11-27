@@ -14,6 +14,7 @@ Deno.serve(async (req) => {
     console.log('[Admin Coupons] Request:', { action, userId: userId ? '***' : undefined })
 
     if (!userId) {
+      console.error('[Admin Coupons] Missing userId')
       return new Response(
         JSON.stringify({ error: 'User ID required' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -21,14 +22,24 @@ Deno.serve(async (req) => {
     }
 
     // Verify admin access
+    console.log('[Admin Coupons] Creating Supabase client...')
     const supabase = createSupabaseClient()
-    const { data: adminCheck } = await supabase
+
+    console.log('[Admin Coupons] Checking admin access for user:', userId)
+    const { data: adminCheck, error: adminError } = await supabase
       .from('admin_users')
       .select('role')
       .eq('user_id', userId)
       .single()
 
+    if (adminError) {
+      console.error('[Admin Coupons] Admin check error:', adminError)
+    }
+
+    console.log('[Admin Coupons] Admin check result:', { hasAccess: !!adminCheck })
+
     if (!adminCheck) {
+      console.error('[Admin Coupons] User is not admin')
       return new Response(
         JSON.stringify({ error: 'Admin access required' }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -114,6 +125,7 @@ Deno.serve(async (req) => {
       }
 
       case 'list': {
+        console.log('[Admin Coupons] Fetching redemption history...')
         // Get redemption history from database
         const { data: redemptions, error } = await supabase
           .from('coupon_redemptions')
@@ -122,13 +134,22 @@ Deno.serve(async (req) => {
           .limit(100)
 
         if (error) {
-          console.error('Error fetching redemptions:', error)
+          console.error('[Admin Coupons] Error fetching redemptions:', {
+            message: error.message,
+            details: error.details,
+            hint: error.hint,
+            code: error.code
+          })
           return new Response(
-            JSON.stringify({ error: 'Failed to fetch coupon redemptions' }),
+            JSON.stringify({
+              error: 'Failed to fetch coupon redemptions',
+              details: error.message
+            }),
             { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           )
         }
 
+        console.log('[Admin Coupons] Redemptions fetched:', redemptions?.length || 0)
         return new Response(
           JSON.stringify({
             success: true,
@@ -145,10 +166,15 @@ Deno.serve(async (req) => {
         )
     }
   } catch (error) {
-    console.error('[Admin Coupons] Error:', error)
+    console.error('[Admin Coupons] Unhandled error:', {
+      message: error.message,
+      stack: error.stack,
+      error: error
+    })
     return new Response(
       JSON.stringify({
-        error: error.message || 'Internal server error'
+        error: error.message || 'Internal server error',
+        details: error.stack
       }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
