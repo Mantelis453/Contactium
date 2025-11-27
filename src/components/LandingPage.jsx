@@ -35,7 +35,7 @@ export default function LandingPage() {
       featuresSubtitle: 'Powerful features that help you scale your outreach without sacrificing quality',
 
       featureAiTitle: 'AI-Powered Emails',
-      featureAiDesc: 'Generate perfectly crafted, personalized cold emails using GPT-4 or Gemini AI in 60+ languages',
+      featureAiDesc: 'Generate perfectly crafted, personalized cold emails using Google Gemini 2.5 Flash in 60+ languages',
 
       featureDbTitle: 'Company Database',
       featureDbDesc: 'Access verified company information in Lithuania. Soon expanding to other European countries and the US',
@@ -104,11 +104,11 @@ export default function LandingPage() {
       benefit3Desc: 'Intuitive interface - create your first campaign in under 5 minutes',
 
       benefit4Title: 'Enterprise-Grade AI',
-      benefit4Desc: 'Choose between GPT-4 or Gemini 2.5 Flash for best-in-class email generation',
+      benefit4Desc: 'Powered by Google Gemini 2.5 Flash for best-in-class email generation with advanced language understanding',
 
       // Pricing
       pricingTitle: 'Simple, Transparent Pricing',
-      pricingSubtitle: 'Choose the plan that fits your needs. Scale as you grow.',
+      pricingSubtitle: 'Choose the plan that fits your needs. Scale as you grow. Special discount codes available!',
       monthly: 'Monthly',
       yearly: 'Yearly',
       saveBadge: 'Save 20%',
@@ -138,7 +138,7 @@ export default function LandingPage() {
       feature1: '1 active campaign',
       feature2: '10 AI-generated emails/month',
       feature3: 'Up to 25 contacts',
-      feature4: 'GPT-4 or Gemini AI',
+      feature4: 'Google Gemini 2.5 Flash AI',
       feature5: '60+ languages',
       feature6: 'Your own SMTP server',
       feature7: 'Campaign dashboard',
@@ -150,7 +150,8 @@ export default function LandingPage() {
       feature13: 'All tones & styles',
       feature14: 'Advanced personalization',
       feature15: 'Priority support',
-      feature16: 'Unlimited campaigns',
+      feature20: 'Coupon code discounts',
+      feature16: '20 active campaigns',
       feature17: '2,500 AI-generated emails/month',
       feature18: 'Up to 10,000 contacts',
       feature19: 'Bulk operations',
@@ -204,7 +205,7 @@ export default function LandingPage() {
       featuresSubtitle: 'Galingos funkcijos, padedančios plėsti jūsų išsiuntimus neprarandant kokybės',
 
       featureAiTitle: 'AI Generuojami Laiškai',
-      featureAiDesc: 'Generuokite tobulai sukurtus, personalizuotus šaltus el. laiškus naudodami GPT-4 ar Gemini AI 60+ kalbomis',
+      featureAiDesc: 'Generuokite tobulai sukurtus, personalizuotus šaltus el. laiškus naudodami Google Gemini 2.5 Flash 60+ kalbomis',
 
       featureDbTitle: 'Įmonių Duomenų Bazė',
       featureDbDesc: 'Prieiga prie patvirtintų įmonių informacijos Lietuvoje. Netrukus plėsimės į kitas Europos šalis ir JAV',
@@ -273,11 +274,11 @@ export default function LandingPage() {
       benefit3Desc: 'Intuityvi sąsaja - sukurkite pirmąją kampaniją per mažiau nei 5 minutes',
 
       benefit4Title: 'Įmonės Lygio AI',
-      benefit4Desc: 'Pasirinkite tarp GPT-4 ar Gemini 2.5 Flash geriausiai klasės el. laiškų generavimui',
+      benefit4Desc: 'Naudoja Google Gemini 2.5 Flash geriausiai klasės el. laiškų generavimui su pažangia kalbos suvokimo technologija',
 
       // Pricing
       pricingTitle: 'Paprastos, Skaidrios Kainos',
-      pricingSubtitle: 'Pasirinkite planą, kuris tinka jūsų poreikiams. Plėskitės augdami.',
+      pricingSubtitle: 'Pasirinkite planą, kuris tinka jūsų poreikiams. Plėskitės augdami. Yra specialūs nuolaidų kodai!',
       monthly: 'Mėnesinis',
       yearly: 'Metinis',
       saveBadge: 'Sutaupykite 20%',
@@ -307,7 +308,7 @@ export default function LandingPage() {
       feature1: '1 aktyvi kampanija',
       feature2: '10 AI sukurtų laiškų/mėn',
       feature3: 'Iki 25 kontaktų',
-      feature4: 'GPT-4 ar Gemini AI',
+      feature4: 'Google Gemini 2.5 Flash AI',
       feature5: '60+ kalbų',
       feature6: 'Jūsų SMTP serveris',
       feature7: 'Kampanijų valdymas',
@@ -319,7 +320,8 @@ export default function LandingPage() {
       feature13: 'Visi tonai ir stiliai',
       feature14: 'Pažangus personalizavimas',
       feature15: 'Pirmumo pagalba',
-      feature16: 'Neriboti kampanijos',
+      feature20: 'Nuolaidų kodų sistema',
+      feature16: '20 aktyvių kampanijų',
       feature17: '2,500 AI sukurtų laiškų/mėn',
       feature18: 'Iki 10,000 kontaktų',
       feature19: 'Masinės operacijos',
@@ -366,7 +368,8 @@ export default function LandingPage() {
         t.feature6,
         t.feature7,
         t.feature8,
-        t.feature9
+        t.feature9,
+        t.feature20
       ],
       cta: t.planFreeCta,
       highlighted: false
@@ -411,7 +414,8 @@ export default function LandingPage() {
         t.feature7,
         t.feature8,
         t.feature19,
-        t.feature15
+        t.feature15,
+        t.feature20
       ],
       cta: t.planProCta,
       highlighted: false
