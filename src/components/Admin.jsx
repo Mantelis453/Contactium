@@ -166,6 +166,19 @@ export default function Admin() {
 
       console.log('[Admin] Loading coupons for user:', user.id)
 
+      // Quick check: verify user is in admin_users table
+      const { data: adminCheck, error: adminCheckError } = await supabase
+        .from('admin_users')
+        .select('*')
+        .eq('user_id', user.id)
+        .single()
+
+      console.log('[Admin] Local admin check:', {
+        hasAccess: !!adminCheck,
+        error: adminCheckError,
+        data: adminCheck
+      })
+
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-coupons`,
         {
@@ -186,15 +199,20 @@ export default function Admin() {
 
       if (response.ok) {
         setCoupons(data.data || [])
+        setCouponMessage({ type: '', text: '' }) // Clear any previous errors
       } else {
+        const errorMsg = data.details || data.error || 'Unknown error'
         console.error('Error loading coupons:', {
           status: response.status,
           error: data.error,
-          details: data.details
+          details: data.details,
+          fullResponse: data
         })
+        // Show error in UI
+        alert(`Admin Coupons Error: ${errorMsg}\n\nCheck console for details.`)
         setCouponMessage({
           type: 'error',
-          text: `Failed to load coupons: ${data.error || 'Unknown error'}`
+          text: `Failed to load coupons: ${errorMsg}`
         })
       }
     } catch (error) {
