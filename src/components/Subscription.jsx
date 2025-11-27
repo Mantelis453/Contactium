@@ -98,6 +98,12 @@ export default function Subscription() {
         throw new Error('No active session')
       }
 
+      console.log('[Subscription] Initiating checkout with:', {
+        tier,
+        couponCode: couponCode.trim() || 'none',
+        hasCoupon: !!couponCode.trim()
+      })
+
       const response = await fetch(`${API_URL}/stripe-session`, {
         method: 'POST',
         headers: {
@@ -110,6 +116,11 @@ export default function Subscription() {
           tier,
           couponCode: couponCode.trim() || undefined
         })
+      })
+
+      console.log('[Subscription] Checkout response:', {
+        status: response.status,
+        ok: response.ok
       })
 
       const data = await response.json()

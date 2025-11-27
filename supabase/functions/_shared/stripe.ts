@@ -38,10 +38,17 @@ export async function createCheckoutSession(userId: string, tier: string, email:
   // Validate coupon code if provided
   let validCoupon = null
   if (couponCode) {
+    console.log('[Checkout] Validating coupon code:', couponCode)
     validCoupon = await validateCoupon(couponCode)
+    console.log('[Checkout] Coupon validation result:', {
+      isValid: !!validCoupon,
+      promotionCodeId: validCoupon?.id,
+      couponId: validCoupon?.coupon?.id
+    })
     if (!validCoupon) {
-      throw new Error('Invalid or expired coupon code')
+      throw new Error(`Invalid or expired coupon code: ${couponCode}`)
     }
+    console.log('[Checkout] Coupon is valid, will apply discount')
   }
 
   // Get or create Stripe customer
@@ -167,10 +174,21 @@ export async function createCheckoutSession(userId: string, tier: string, email:
 
   // Add discount if valid coupon provided
   if (validCoupon) {
+    console.log('[Checkout] Applying discount with promotion code ID:', validCoupon.id)
     sessionParams.discounts = [{ promotion_code: validCoupon.id }]
+  } else if (couponCode) {
+    console.log('[Checkout] WARNING: Coupon code provided but not validated:', couponCode)
   }
 
+  console.log('[Checkout] Creating session with params:', {
+    customer: customerId,
+    tier,
+    hasDiscount: !!validCoupon,
+    discounts: sessionParams.discounts
+  })
+
   const session = await stripe.checkout.sessions.create(sessionParams)
+  console.log('[Checkout] Session created:', session.id)
 
   // Track coupon usage in database if applied
   if (validCoupon && couponCode) {
@@ -408,6 +426,8 @@ export async function getBillingInfo(userId: string) {
 // Validate a coupon code with Stripe
 export async function validateCoupon(couponCode: string) {
   try {
+    console.log('[validateCoupon] Looking up promotion code:', couponCode)
+
     // Try to retrieve as a promotion code first
     const promotionCodes = await stripe.promotionCodes.list({
       code: couponCode,
@@ -415,8 +435,17 @@ export async function validateCoupon(couponCode: string) {
       limit: 1
     })
 
+    console.log('[validateCoupon] Promotion codes found:', promotionCodes.data.length)
+
     if (promotionCodes.data.length > 0) {
       const promoCode = promotionCodes.data[0]
+      console.log('[validateCoupon] Promotion code details:', {
+        id: promoCode.id,
+        code: promoCode.code,
+        active: promoCode.active,
+        expires_at: promoCode.expires_at,
+        now: Date.now() / 1000
+      })
 
       // Check if promotion code is valid
       if (promoCode.active && (!promoCode.expires_at || promoCode.expires_at > Date.now() / 1000)) {
@@ -424,23 +453,29 @@ export async function validateCoupon(couponCode: string) {
         const fullPromoCode = await stripe.promotionCodes.retrieve(promoCode.id, {
           expand: ['coupon']
         })
+        console.log('[validateCoupon] Returning valid promotion code')
         return fullPromoCode
+      } else {
+        console.log('[validateCoupon] Promotion code is expired or inactive')
       }
     }
 
     // If not found as promotion code, try as direct coupon
+    console.log('[validateCoupon] Trying as direct coupon ID')
     try {
       const coupon = await stripe.coupons.retrieve(couponCode)
+      console.log('[validateCoupon] Direct coupon found:', { id: coupon.id, valid: coupon.valid })
       if (coupon.valid) {
         return { id: coupon.id, coupon }
       }
     } catch (err) {
-      // Coupon not found, that's ok
+      console.log('[validateCoupon] Not found as direct coupon')
     }
 
+    console.log('[validateCoupon] No valid coupon found')
     return null
   } catch (error) {
-    console.error('Error validating coupon:', error)
+    console.error('[validateCoupon] Error:', error)
     return null
   }
 }
