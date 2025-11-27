@@ -805,7 +805,7 @@ export default function CreateCampaign() {
               className="primary-btn send-btn"
               disabled={loading}
             >
-              {loading ? {t('dashboard.sending')} : formData.sendDate ? 'Schedule Campaign' : 'Send Campaign'}
+              {loading ? t('dashboard.sending') : formData.sendDate ? 'Schedule Campaign' : 'Send Campaign'}
             </button>
           )}
         </div>

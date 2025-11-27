@@ -273,7 +273,7 @@ export default function ContactLists() {
                 disabled={creating}
                 className="primary-btn"
               >
-                {creating ? {t('createCampaign.creating')} : 'Create List'}
+                {creating ? t('createCampaign.creating') : 'Create List'}
               </button>
             </div>
           </div>

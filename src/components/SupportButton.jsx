@@ -119,7 +119,7 @@ export default function SupportButton({ variant = 'floating' }) {
                   <div className="support-actions">
                     <button type="button" className="secondary-btn" onClick={() => setIsOpen(false)}>{t('common.cancel')}</button>
                     <button type="submit" className="primary-btn" disabled={sending}>
-                      {sending ? {t('dashboard.sending')} : 'Send Message'}
+                      {sending ? t('dashboard.sending') : 'Send Message'}
                     </button>
                   </div>
                 </form>
@@ -202,7 +202,7 @@ export default function SupportButton({ variant = 'floating' }) {
                 <div className="support-actions">
                   <button type="button" className="secondary-btn" onClick={() => setIsOpen(false)}>{t('common.cancel')}</button>
                   <button type="submit" className="primary-btn" disabled={sending}>
-                    {sending ? {t('dashboard.sending')} : 'Send Message'}
+                    {sending ? t('dashboard.sending') : 'Send Message'}
                   </button>
                 </div>
               </form>

@@ -531,7 +531,7 @@ export default function Settings() {
             <div className="success-message">Settings saved successfully!</div>
           )}
           <button onClick={saveSettings} className="primary-btn" disabled={loading}>
-            {loading ? {t('settings.saving')} : 'Save Settings'}
+            {loading ? t('settings.saving') : 'Save Settings'}
           </button>
         </div>
       </div>

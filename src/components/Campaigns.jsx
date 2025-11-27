@@ -184,7 +184,7 @@ export default function Campaigns() {
                       fontSize: '0.85rem',
                       color: '#856404'
                     }}>
-                      ⏳ Expires in {expirationInfo.daysRemaining} {expirationInfo.daysRemaining === 1 ? 'day' : {t('dashboard.days')}}
+                      ⏳ Expires in {expirationInfo.daysRemaining} {expirationInfo.daysRemaining === 1 ? 'day' : t('dashboard.days')}
                     </div>
                   )}
                 </div>
@@ -198,7 +198,7 @@ export default function Campaigns() {
                       className="primary-btn"
                       disabled={sendingCampaignId === campaign.id}
                     >
-                      {sendingCampaignId === campaign.id ? {t('dashboard.sending')} : 'Send Now'}
+                      {sendingCampaignId === campaign.id ? t('dashboard.sending') : 'Send Now'}
                     </button>
                   )}
                   {campaign.status === 'running' && (

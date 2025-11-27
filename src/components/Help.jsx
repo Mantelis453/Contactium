@@ -37,7 +37,7 @@ export default function Help() {
     },
     {
       id: 'dashboard',
-      title: {t('dashboard.title')},
+      title: t('dashboard.title'),
       icon: '📊',
       content: (
         <>
@@ -123,7 +123,7 @@ export default function Help() {
     },
     {
       id: 'contact-lists',
-      title: {t('contactLists.title')},
+      title: t('contactLists.title'),
       icon: '📋',
       content: (
         <>
@@ -179,7 +179,7 @@ export default function Help() {
       )
     },
     {
-      id: {t('companies.companies')},
+      id: 'companies',
       title: 'Companies Database',
       icon: '🏢',
       content: (
@@ -280,7 +280,7 @@ export default function Help() {
     },
     {
       id: 'settings',
-      title: {t('settings.title')},
+      title: t('settings.title'),
       icon: '⚙️',
       content: (
         <>

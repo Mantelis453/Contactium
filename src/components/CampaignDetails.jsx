@@ -74,7 +74,7 @@ export default function CampaignDetails() {
 
       if (companyIds.length > 0) {
         const { data: companies } = await supabase
-          .from({t('companies.companies')})
+          .from('companies')
           .select('id, company_name, email, activity, employees, address')
           .in('id', companyIds)
 
@@ -358,7 +358,7 @@ export default function CampaignDetails() {
         </div>
       ) : daysRemaining <= 7 && (
         <div className="info-box" style={{ marginBottom: '1rem', backgroundColor: '#fff3cd', borderColor: '#ffc107', color: '#856404' }}>
-          ℹ️ This campaign will expire in {daysRemaining} {daysRemaining === 1 ? 'day' : {t('dashboard.days')}}. Campaigns are automatically deleted 30 days after creation.
+          ℹ️ This campaign will expire in {daysRemaining} {daysRemaining === 1 ? 'day' : t('dashboard.days')}. Campaigns are automatically deleted 30 days after creation.
         </div>
       )}
 
@@ -518,7 +518,7 @@ export default function CampaignDetails() {
             className="primary-btn"
             disabled={sendingCampaign}
           >
-            {sendingCampaign ? {t('dashboard.sending')} : campaign.status === 'completed' ? '🔄 Send Again' : 'Send Campaign Now'}
+            {sendingCampaign ? t('dashboard.sending') : campaign.status === 'completed' ? '🔄 Send Again' : 'Send Campaign Now'}
           </button>
         )}
         {!isExpired && campaign.status === 'running' && (
@@ -528,7 +528,7 @@ export default function CampaignDetails() {
               className="primary-btn"
               disabled={sendingCampaign}
             >
-              {sendingCampaign ? {t('dashboard.sending')} : '▶️ Continue Sending'}
+              {sendingCampaign ? t('dashboard.sending') : '▶️ Continue Sending'}
             </button>
             <button
               onClick={async () => {

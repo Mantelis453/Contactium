@@ -1080,7 +1080,7 @@ ${details.employeeCount ? `👔 Employees: ~${details.employeeCount}` : ''}`
                 disabled={loadingMore}
                 className="primary-btn load-more-btn"
               >
-                {loadingMore ? {t('common.loading')} : `Load More (${total - companies.length} remaining)`}
+                {loadingMore ? t('common.loading') : `Load More (${total - companies.length} remaining)`}
               </button>
             </div>
           )}
@@ -1121,7 +1121,7 @@ ${details.employeeCount ? `👔 Employees: ~${details.employeeCount}` : ''}`
                     disabled={!selectedListId || addingToList}
                     className="primary-btn"
                   >
-                    {addingToList ? 'Adding...' : {t('companies.addToList')}}
+                    {addingToList ? 'Adding...' : t('companies.addToList')}
                   </button>
                 </div>
               </>
