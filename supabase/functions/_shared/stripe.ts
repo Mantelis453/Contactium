@@ -28,11 +28,20 @@ const pricing = {
   }
 }
 
-export async function createCheckoutSession(userId: string, tier: string, email: string) {
+export async function createCheckoutSession(userId: string, tier: string, email: string, couponCode?: string) {
   const supabase = createSupabaseClient()
 
   if (!pricing[tier as keyof typeof pricing] || tier === 'free') {
     throw new Error('Invalid subscription tier')
+  }
+
+  // Validate coupon code if provided
+  let validCoupon = null
+  if (couponCode) {
+    validCoupon = await validateCoupon(couponCode)
+    if (!validCoupon) {
+      throw new Error('Invalid or expired coupon code')
+    }
   }
 
   // Get or create Stripe customer
@@ -131,7 +140,7 @@ export async function createCheckoutSession(userId: string, tier: string, email:
   }
 
   // Create checkout session for new subscription
-  const session = await stripe.checkout.sessions.create({
+  const sessionParams: Stripe.Checkout.SessionCreateParams = {
     customer: customerId,
     mode: 'subscription',
     payment_method_types: ['card'],
@@ -145,7 +154,8 @@ export async function createCheckoutSession(userId: string, tier: string, email:
     cancel_url: `${Deno.env.get('APP_URL')}/settings?canceled=true`,
     metadata: {
       userId,
-      tier
+      tier,
+      couponCode: couponCode || ''
     },
     subscription_data: {
       metadata: {
@@ -153,7 +163,30 @@ export async function createCheckoutSession(userId: string, tier: string, email:
         tier
       }
     }
-  })
+  }
+
+  // Add discount if valid coupon provided
+  if (validCoupon) {
+    sessionParams.discounts = [{ promotion_code: validCoupon.id }]
+  }
+
+  const session = await stripe.checkout.sessions.create(sessionParams)
+
+  // Track coupon usage in database if applied
+  if (validCoupon && couponCode) {
+    try {
+      await supabase.from('coupon_redemptions').insert({
+        user_id: userId,
+        coupon_code: couponCode,
+        stripe_coupon_id: validCoupon.coupon.id,
+        discount_amount: validCoupon.coupon.amount_off ? validCoupon.coupon.amount_off / 100 : null,
+        discount_percent: validCoupon.coupon.percent_off || null
+      })
+    } catch (error) {
+      console.error('Failed to track coupon usage:', error)
+      // Don't fail the checkout if tracking fails
+    }
+  }
 
   return { sessionId: session.id, url: session.url }
 }
@@ -368,6 +401,112 @@ export async function getBillingInfo(userId: string) {
     }
   } catch (error) {
     console.error('Error fetching billing info:', error)
+    throw error
+  }
+}
+
+// Validate a coupon code with Stripe
+export async function validateCoupon(couponCode: string) {
+  try {
+    // Try to retrieve as a promotion code first
+    const promotionCodes = await stripe.promotionCodes.list({
+      code: couponCode,
+      active: true,
+      limit: 1
+    })
+
+    if (promotionCodes.data.length > 0) {
+      const promoCode = promotionCodes.data[0]
+
+      // Check if promotion code is valid
+      if (promoCode.active && (!promoCode.expires_at || promoCode.expires_at > Date.now() / 1000)) {
+        // Expand coupon details
+        const fullPromoCode = await stripe.promotionCodes.retrieve(promoCode.id, {
+          expand: ['coupon']
+        })
+        return fullPromoCode
+      }
+    }
+
+    // If not found as promotion code, try as direct coupon
+    try {
+      const coupon = await stripe.coupons.retrieve(couponCode)
+      if (coupon.valid) {
+        return { id: coupon.id, coupon }
+      }
+    } catch (err) {
+      // Coupon not found, that's ok
+    }
+
+    return null
+  } catch (error) {
+    console.error('Error validating coupon:', error)
+    return null
+  }
+}
+
+// Create a new promotion code (for admin use)
+export async function createPromotionCode(params: {
+  couponId?: string
+  code: string
+  percentOff?: number
+  amountOff?: number
+  duration?: 'once' | 'repeating' | 'forever'
+  durationInMonths?: number
+  maxRedemptions?: number
+  expiresAt?: number
+}) {
+  try {
+    let couponId = params.couponId
+
+    // Create coupon if not provided
+    if (!couponId) {
+      const couponParams: Stripe.CouponCreateParams = {
+        duration: params.duration || 'once',
+        name: params.code
+      }
+
+      if (params.percentOff) {
+        couponParams.percent_off = params.percentOff
+      } else if (params.amountOff) {
+        couponParams.amount_off = params.amountOff
+        couponParams.currency = 'usd'
+      } else {
+        throw new Error('Either percentOff or amountOff is required')
+      }
+
+      if (params.duration === 'repeating' && params.durationInMonths) {
+        couponParams.duration_in_months = params.durationInMonths
+      }
+
+      const coupon = await stripe.coupons.create(couponParams)
+      couponId = coupon.id
+    }
+
+    // Create promotion code
+    const promoCodeParams: Stripe.PromotionCodeCreateParams = {
+      coupon: couponId,
+      code: params.code,
+      active: true
+    }
+
+    if (params.maxRedemptions) {
+      promoCodeParams.max_redemptions = params.maxRedemptions
+    }
+
+    if (params.expiresAt) {
+      promoCodeParams.expires_at = params.expiresAt
+    }
+
+    const promotionCode = await stripe.promotionCodes.create(promoCodeParams)
+
+    return {
+      success: true,
+      promotionCode,
+      couponId
+    }
+  } catch (error) {
+    console.error('Error creating promotion code:', error)
     throw error
   }
 }

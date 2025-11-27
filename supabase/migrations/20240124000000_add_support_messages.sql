@@ -29,6 +29,13 @@ CREATE INDEX IF NOT EXISTS idx_support_messages_created_at ON support_messages(c
 ALTER TABLE support_messages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE admin_users ENABLE ROW LEVEL SECURITY;
 
+-- Drop existing policies if they exist
+DROP POLICY IF EXISTS "Users can create support messages" ON support_messages;
+DROP POLICY IF EXISTS "Users can view their own support messages" ON support_messages;
+DROP POLICY IF EXISTS "Admins can view all support messages" ON support_messages;
+DROP POLICY IF EXISTS "Admins can update support messages" ON support_messages;
+DROP POLICY IF EXISTS "Admins can view admin_users" ON admin_users;
+
 -- Users can create and view their own support messages
 CREATE POLICY "Users can create support messages" ON support_messages
   FOR INSERT WITH CHECK (auth.uid() = user_id OR user_id IS NULL);

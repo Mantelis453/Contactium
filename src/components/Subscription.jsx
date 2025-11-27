@@ -11,6 +11,8 @@ export default function Subscription() {
   const [checkingOut, setCheckingOut] = useState(false)
   const [billingInfo, setBillingInfo] = useState(null)
   const [loadingBilling, setLoadingBilling] = useState(false)
+  const [couponCode, setCouponCode] = useState('')
+  const [couponError, setCouponError] = useState('')
 
   useEffect(() => {
     // Check if user just returned from successful checkout or upgrade
@@ -88,6 +90,7 @@ export default function Subscription() {
   const handleUpgrade = async (tier) => {
     try {
       setCheckingOut(true)
+      setCouponError('')
 
       // Get the current session token for authentication
       const { data: { session } } = await supabase.auth.getSession()
@@ -104,7 +107,8 @@ export default function Subscription() {
         body: JSON.stringify({
           type: 'checkout',
           userId: user.id,
-          tier
+          tier,
+          couponCode: couponCode.trim() || undefined
         })
       })
 
@@ -114,6 +118,13 @@ export default function Subscription() {
         // Show detailed error message from server
         const errorMsg = data.details || data.error || 'Failed to create checkout session'
         console.error('Checkout session error:', data)
+
+        // Check if error is coupon-related
+        if (errorMsg.toLowerCase().includes('coupon') || errorMsg.toLowerCase().includes('promotion')) {
+          setCouponError(errorMsg)
+          throw new Error(errorMsg)
+        }
+
         throw new Error(errorMsg)
       }
 
@@ -386,6 +397,48 @@ export default function Subscription() {
             </>
           )}
         </>
+      )}
+
+      {/* Coupon Code Section (for free tier users) */}
+      {tier === 'free' && (
+        <div className="coupon-section">
+          <h4>🎟️ Have a Coupon Code?</h4>
+          <div className="coupon-input-group">
+            <input
+              type="text"
+              className="coupon-input"
+              placeholder="Enter coupon code"
+              value={couponCode}
+              onChange={(e) => {
+                setCouponCode(e.target.value.toUpperCase())
+                setCouponError('')
+              }}
+              disabled={checkingOut}
+            />
+            {couponCode && (
+              <button
+                className="clear-coupon-btn"
+                onClick={() => {
+                  setCouponCode('')
+                  setCouponError('')
+                }}
+                disabled={checkingOut}
+              >
+                ✕
+              </button>
+            )}
+          </div>
+          {couponError && (
+            <div className="error-box" style={{ marginTop: '0.5rem' }}>
+              ⚠️ {couponError}
+            </div>
+          )}
+          {couponCode && !couponError && (
+            <div className="info-box" style={{ marginTop: '0.5rem' }}>
+              💡 Coupon code "{couponCode}" will be applied at checkout
+            </div>
+          )}
+        </div>
       )}
 
       {/* Action Buttons */}

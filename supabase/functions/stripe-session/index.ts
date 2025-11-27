@@ -9,9 +9,9 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { type, userId, tier } = await req.json()
+    const { type, userId, tier, couponCode } = await req.json()
 
-    console.log('[Session] Request:', { type, userId: userId ? '***' : undefined, tier })
+    console.log('[Session] Request:', { type, userId: userId ? '***' : undefined, tier, couponCode: couponCode ? '***' : undefined })
 
     if (!type) {
       return new Response(
@@ -67,11 +67,11 @@ Deno.serve(async (req) => {
       }
 
       console.log('[Session] Creating checkout session...')
-      const session = await createCheckoutSession(userId, tier, user.email)
+      const session = await createCheckoutSession(userId, tier, user.email, couponCode)
       console.log('[Session] Checkout session created successfully')
 
       return new Response(
-        JSON.stringify({ url: session.url }),
+        JSON.stringify({ url: session.url, upgraded: session.upgraded }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }

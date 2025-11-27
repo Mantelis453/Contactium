@@ -20,6 +20,21 @@ export default function Admin() {
   const [users, setUsers] = useState([])
   const [userSearch, setUserSearch] = useState('')
 
+  // Coupon state
+  const [coupons, setCoupons] = useState([])
+  const [couponForm, setCouponForm] = useState({
+    code: '',
+    type: 'percent',
+    percentOff: '',
+    amountOff: '',
+    duration: 'once',
+    durationInMonths: '',
+    maxRedemptions: '',
+    expiresAt: ''
+  })
+  const [couponLoading, setCouponLoading] = useState(false)
+  const [couponMessage, setCouponMessage] = useState({ type: '', text: '' })
+
   // Stats
   const [stats, setStats] = useState({
     totalUsers: 0,
@@ -39,8 +54,11 @@ export default function Admin() {
       loadStats()
       loadSupportMessages()
       loadUsers()
+      if (activeTab === 'coupons') {
+        loadCoupons()
+      }
     }
-  }, [isAdmin, messageFilter])
+  }, [isAdmin, messageFilter, activeTab])
 
   const checkAdminAccess = async () => {
     try {
@@ -127,6 +145,110 @@ export default function Admin() {
     } catch (error) {
       console.error('Error loading users:', error)
       setUsers([])
+    }
+  }
+
+  const loadCoupons = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) return
+
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-coupons`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            action: 'list',
+            userId: user.id
+          })
+        }
+      )
+      const data = await response.json()
+
+      if (response.ok) {
+        setCoupons(data.data || [])
+      } else {
+        console.error('Error loading coupons:', data.error)
+      }
+    } catch (error) {
+      console.error('Error loading coupons:', error)
+    }
+  }
+
+  const createCoupon = async (e) => {
+    e.preventDefault()
+    setCouponLoading(true)
+    setCouponMessage({ type: '', text: '' })
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) throw new Error('No active session')
+
+      const params = {
+        action: 'create',
+        userId: user.id,
+        code: couponForm.code.toUpperCase(),
+        duration: couponForm.duration
+      }
+
+      if (couponForm.type === 'percent') {
+        params.percentOff = parseInt(couponForm.percentOff)
+      } else {
+        params.amountOff = parseInt(couponForm.amountOff) * 100 // Convert to cents
+      }
+
+      if (couponForm.maxRedemptions) {
+        params.maxRedemptions = parseInt(couponForm.maxRedemptions)
+      }
+
+      if (couponForm.duration === 'repeating' && couponForm.durationInMonths) {
+        params.durationInMonths = parseInt(couponForm.durationInMonths)
+      }
+
+      if (couponForm.expiresAt) {
+        params.expiresAt = Math.floor(new Date(couponForm.expiresAt).getTime() / 1000)
+      }
+
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-coupons`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(params)
+        }
+      )
+
+      const data = await response.json()
+
+      if (response.ok) {
+        setCouponMessage({ type: 'success', text: data.message })
+        // Reset form
+        setCouponForm({
+          code: '',
+          type: 'percent',
+          percentOff: '',
+          amountOff: '',
+          duration: 'once',
+          durationInMonths: '',
+          maxRedemptions: '',
+          expiresAt: ''
+        })
+        loadCoupons()
+      } else {
+        setCouponMessage({ type: 'error', text: data.error || 'Failed to create coupon' })
+      }
+    } catch (error) {
+      console.error('Error creating coupon:', error)
+      setCouponMessage({ type: 'error', text: error.message })
+    } finally {
+      setCouponLoading(false)
     }
   }
 
@@ -326,6 +448,12 @@ export default function Admin() {
         >
           Users
         </button>
+        <button
+          className={`admin-tab ${activeTab === 'coupons' ? 'active' : ''}`}
+          onClick={() => setActiveTab('coupons')}
+        >
+          Coupon Codes
+        </button>
       </div>
 
       {/* Support Messages Tab */}
@@ -503,6 +631,170 @@ export default function Admin() {
                         <td>{formatDate(userData.current_period_end)}</td>
                       </tr>
                     ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Coupons Tab */}
+      {activeTab === 'coupons' && (
+        <div className="admin-content">
+          <div className="admin-section">
+            <h3>Create New Coupon Code</h3>
+
+            {couponMessage.text && (
+              <div className={`admin-message ${couponMessage.type}`}>
+                {couponMessage.text}
+              </div>
+            )}
+
+            <form onSubmit={createCoupon} className="coupon-form">
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Coupon Code *</label>
+                  <input
+                    type="text"
+                    value={couponForm.code}
+                    onChange={(e) => setCouponForm({ ...couponForm, code: e.target.value.toUpperCase() })}
+                    placeholder="e.g., SAVE20"
+                    required
+                    disabled={couponLoading}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>Discount Type *</label>
+                  <select
+                    value={couponForm.type}
+                    onChange={(e) => setCouponForm({ ...couponForm, type: e.target.value })}
+                    disabled={couponLoading}
+                  >
+                    <option value="percent">Percentage Off</option>
+                    <option value="amount">Fixed Amount Off</option>
+                  </select>
+                </div>
+
+                {couponForm.type === 'percent' ? (
+                  <div className="form-group">
+                    <label>Percent Off (%) *</label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="100"
+                      value={couponForm.percentOff}
+                      onChange={(e) => setCouponForm({ ...couponForm, percentOff: e.target.value })}
+                      placeholder="e.g., 20"
+                      required
+                      disabled={couponLoading}
+                    />
+                  </div>
+                ) : (
+                  <div className="form-group">
+                    <label>Amount Off (€) *</label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={couponForm.amountOff}
+                      onChange={(e) => setCouponForm({ ...couponForm, amountOff: e.target.value })}
+                      placeholder="e.g., 10"
+                      required
+                      disabled={couponLoading}
+                    />
+                  </div>
+                )}
+              </div>
+
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Duration *</label>
+                  <select
+                    value={couponForm.duration}
+                    onChange={(e) => setCouponForm({ ...couponForm, duration: e.target.value })}
+                    disabled={couponLoading}
+                  >
+                    <option value="once">Once (first payment only)</option>
+                    <option value="repeating">Repeating (multiple months)</option>
+                    <option value="forever">Forever</option>
+                  </select>
+                </div>
+
+                {couponForm.duration === 'repeating' && (
+                  <div className="form-group">
+                    <label>Duration (months) *</label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={couponForm.durationInMonths}
+                      onChange={(e) => setCouponForm({ ...couponForm, durationInMonths: e.target.value })}
+                      placeholder="e.g., 3"
+                      required
+                      disabled={couponLoading}
+                    />
+                  </div>
+                )}
+
+                <div className="form-group">
+                  <label>Max Redemptions (optional)</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={couponForm.maxRedemptions}
+                    onChange={(e) => setCouponForm({ ...couponForm, maxRedemptions: e.target.value })}
+                    placeholder="Leave empty for unlimited"
+                    disabled={couponLoading}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>Expires At (optional)</label>
+                  <input
+                    type="datetime-local"
+                    value={couponForm.expiresAt}
+                    onChange={(e) => setCouponForm({ ...couponForm, expiresAt: e.target.value })}
+                    disabled={couponLoading}
+                  />
+                </div>
+              </div>
+
+              <button type="submit" className="admin-btn primary" disabled={couponLoading}>
+                {couponLoading ? 'Creating...' : 'Create Coupon Code'}
+              </button>
+            </form>
+          </div>
+
+          <div className="admin-section">
+            <h3>Coupon Redemption History</h3>
+            <div className="admin-table-container">
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th>Code</th>
+                    <th>Discount</th>
+                    <th>User ID</th>
+                    <th>Redeemed At</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {coupons.length === 0 ? (
+                    <tr>
+                      <td colSpan="4" style={{ textAlign: 'center', padding: '2rem' }}>
+                        No coupon redemptions yet
+                      </td>
+                    </tr>
+                  ) : (
+                    coupons.map((coupon, index) => (
+                      <tr key={index}>
+                        <td><code>{coupon.coupon_code}</code></td>
+                        <td>
+                          {coupon.discount_percent ? `${coupon.discount_percent}%` : `€${coupon.discount_amount}`}
+                        </td>
+                        <td><code>{coupon.user_id.substring(0, 8)}...</code></td>
+                        <td>{formatDate(coupon.redeemed_at)}</td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
