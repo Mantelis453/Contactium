@@ -3,9 +3,11 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
 import { testSmtpConnection } from '../lib/emailApi'
 import Subscription from './Subscription'
+import { useLanguage } from '../contexts/LanguageContext'
 import '../styles/Settings.css'
 
 export default function Settings() {
+  const { t } = useLanguage()
   const { user } = useAuth()
   const [loading, setLoading] = useState(false)
   const [saveSuccess, setSaveSuccess] = useState(false)
@@ -197,7 +199,7 @@ export default function Settings() {
 
   return (
     <div className="page-container">
-      <h2 className="page-title">Settings</h2>
+      <h2 className="page-title">{t('settings.title')}</h2>
       <p className="settings-intro">Configure your email campaigns and AI settings. All changes are saved automatically when you click Save Settings.</p>
 
       <div className="settings-container">
@@ -279,7 +281,7 @@ export default function Settings() {
 
           <div className="form-row">
             <div className="form-group">
-              <label>SMTP Host <span className="required">*</span></label>
+              <label>{t('settings.smtpHost')}<span className="required">*</span></label>
               <input
                 type="text"
                 name="smtp_host"
@@ -330,7 +332,7 @@ export default function Settings() {
 
           <div className="form-row">
             <div className="form-group">
-              <label>From Email</label>
+              <label>{t('settings.fromEmail')}</label>
               <input
                 type="email"
                 name="smtp_from_email"
@@ -341,7 +343,7 @@ export default function Settings() {
               <p className="help-text">Optional: Custom "From" email address</p>
             </div>
             <div className="form-group">
-              <label>From Name</label>
+              <label>{t('settings.fromName')}</label>
               <input
                 type="text"
                 name="smtp_from_name"
@@ -529,7 +531,7 @@ export default function Settings() {
             <div className="success-message">Settings saved successfully!</div>
           )}
           <button onClick={saveSettings} className="primary-btn" disabled={loading}>
-            {loading ? 'Saving...' : 'Save Settings'}
+            {loading ? {t('settings.saving')} : 'Save Settings'}
           </button>
         </div>
       </div>

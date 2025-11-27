@@ -5,9 +5,11 @@ import { useAuth } from '../hooks/useAuth'
 import { useSubscription } from '../contexts/SubscriptionContext'
 import SearchableSelect from './SearchableSelect'
 import API_URL from '../config/api'
+import { useLanguage } from '../contexts/LanguageContext'
 import '../styles/Companies.css'
 
 export default function Companies() {
+  const { t } = useLanguage()
   const { user } = useAuth()
   const navigate = useNavigate()
   const { subscription, loading: subscriptionLoading } = useSubscription()
@@ -610,7 +612,7 @@ ${details.employeeCount ? `👔 Employees: ~${details.employeeCount}` : ''}`
   if (subscriptionLoading) {
     return (
       <div className="page-container">
-        <div className="loading-state">Loading...</div>
+        <div className="loading-state">{t('common.loading')}</div>
       </div>
     )
   }
@@ -796,13 +798,13 @@ ${details.employeeCount ? `👔 Employees: ~${details.employeeCount}` : ''}`
                   />
                 </th>
                 <th></th>
-                <th>Company Name</th>
+                <th>{t('companies.companyName')}</th>
                 <th>Code</th>
                 <th>Activity</th>
                 <th>Tags</th>
                 <th>Emails</th>
-                <th>Phone</th>
-                <th>Actions</th>
+                <th>{t('companies.phone')}</th>
+                <th>{t('dashboard.actions')}</th>
               </tr>
             </thead>
             <tbody>
@@ -1078,7 +1080,7 @@ ${details.employeeCount ? `👔 Employees: ~${details.employeeCount}` : ''}`
                 disabled={loadingMore}
                 className="primary-btn load-more-btn"
               >
-                {loadingMore ? 'Loading...' : `Load More (${total - companies.length} remaining)`}
+                {loadingMore ? {t('common.loading')} : `Load More (${total - companies.length} remaining)`}
               </button>
             </div>
           )}
@@ -1113,15 +1115,13 @@ ${details.employeeCount ? `👔 Employees: ~${details.employeeCount}` : ''}`
                 </select>
 
                 <div className="modal-actions">
-                  <button onClick={() => setShowAddToListModal(false)} className="secondary-btn">
-                    Cancel
-                  </button>
+                  <button onClick={() => setShowAddToListModal(false)} className="secondary-btn">{t('common.cancel')}</button>
                   <button
                     onClick={addCompaniesToList}
                     disabled={!selectedListId || addingToList}
                     className="primary-btn"
                   >
-                    {addingToList ? 'Adding...' : 'Add to List'}
+                    {addingToList ? 'Adding...' : {t('companies.addToList')}}
                   </button>
                 </div>
               </>

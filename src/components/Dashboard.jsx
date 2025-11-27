@@ -4,9 +4,11 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
 import { useSubscription } from '../contexts/SubscriptionContext'
 import { sendCampaign } from '../lib/campaignSender'
+import { useLanguage } from '../contexts/LanguageContext'
 import '../styles/Dashboard.css'
 
 export default function Dashboard() {
+  const { t } = useLanguage()
   const { user } = useAuth()
   const { currentPlan, canCreateCampaign } = useSubscription()
   const navigate = useNavigate()
@@ -108,7 +110,7 @@ export default function Dashboard() {
   if (loading) {
     return (
       <div className="page-container">
-        <div className="loading-state">Loading...</div>
+        <div className="loading-state">{t('common.loading')}</div>
       </div>
     )
   }
@@ -118,15 +120,13 @@ export default function Dashboard() {
       <div className="dashboard-header">
         <div className="header-content">
           <div>
-            <h2 className="page-title">Dashboard</h2>
+            <h2 className="page-title">{t('dashboard.title')}</h2>
             <p className="dashboard-subtitle">Monitor and manage your email campaigns</p>
           </div>
           <button onClick={handleCreateCampaign} className="primary-btn create-campaign-btn">
             <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
               <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
-            </svg>
-            Create Campaign
-          </button>
+            </svg>{t('createCampaign.createCampaign')}</button>
         </div>
       </div>
 
@@ -139,7 +139,7 @@ export default function Dashboard() {
             </svg>
           </div>
           <div className="stat-content">
-            <div className="stat-label">Total Campaigns</div>
+            <div className="stat-label">{t('dashboard.totalCampaigns')}</div>
             <div className="stat-value">{stats.total}</div>
             <div className="stat-change">
               <Link to="/campaigns" className="stat-link">View all →</Link>
@@ -155,7 +155,7 @@ export default function Dashboard() {
             </svg>
           </div>
           <div className="stat-content">
-            <div className="stat-label">Completed</div>
+            <div className="stat-label">{t('dashboard.completedCampaigns')}</div>
             <div className="stat-value">{stats.completed}</div>
             <div className="stat-change">
               {stats.total > 0 && (
@@ -207,7 +207,7 @@ export default function Dashboard() {
       <div className="dashboard-content">
         <div className="campaigns-section">
           <div className="section-header">
-            <h3>Recent Campaigns</h3>
+            <h3>{t('dashboard.recentCampaigns')}</h3>
             <Link to="/campaigns" className="view-all-link">
               View all campaigns →
             </Link>
@@ -221,7 +221,7 @@ export default function Dashboard() {
                   <polyline points="22,6 12,13 2,6" />
                 </svg>
               </div>
-              <h4>No campaigns yet</h4>
+              <h4>{t('dashboard.noCampaigns')}</h4>
               <p>Create your first campaign to start sending personalized emails to your contacts.</p>
               <button onClick={handleCreateCampaign} className="primary-btn">
                 Create Your First Campaign
@@ -261,7 +261,7 @@ export default function Dashboard() {
                     <div className="campaign-card-stats">
                       <div className="campaign-stat">
                         <div className="campaign-stat-value">{campaign.emails_sent || 0}</div>
-                        <div className="campaign-stat-label">Emails Sent</div>
+                        <div className="campaign-stat-label">{t('dashboard.emailsSent')}</div>
                       </div>
                       <div className="campaign-stat-divider" />
                       <div className="campaign-stat">
@@ -307,9 +307,7 @@ export default function Dashboard() {
                               <svg className="spinner" width="16" height="16" viewBox="0 0 24 24">
                                 <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" opacity="0.25" />
                                 <path d="M12 2a10 10 0 0110 10" stroke="currentColor" strokeWidth="4" fill="none" />
-                              </svg>
-                              Sending...
-                            </>
+                              </svg>{t('dashboard.sending')}</>
                           ) : (
                             <>
                               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

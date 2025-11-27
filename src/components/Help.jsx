@@ -4,6 +4,7 @@ import SupportButton from './SupportButton'
 import '../styles/Help.css'
 
 export default function Help() {
+  const { t } = useLanguage()
   const navigate = useNavigate()
   const [activeSection, setActiveSection] = useState('getting-started')
 
@@ -36,7 +37,7 @@ export default function Help() {
     },
     {
       id: 'dashboard',
-      title: 'Dashboard',
+      title: {t('dashboard.title')},
       icon: '📊',
       content: (
         <>
@@ -122,7 +123,7 @@ export default function Help() {
     },
     {
       id: 'contact-lists',
-      title: 'Contact Lists',
+      title: {t('contactLists.title')},
       icon: '📋',
       content: (
         <>
@@ -138,7 +139,7 @@ export default function Help() {
 
           <h4>Creating a Contact List:</h4>
           <ol>
-            <li>Navigate to "Contact Lists" in the main menu</li>
+            <li>Navigate to {t('contactLists.title')} in the main menu</li>
             <li>Click "+ New List"</li>
             <li>Enter a name (e.g., "Tech Startups", "Warm Leads")</li>
             <li>Add an optional description</li>
@@ -152,7 +153,7 @@ export default function Help() {
             <li>Fill in contact details:
               <ul>
                 <li>Email (required)</li>
-                <li>Name</li>
+                <li>{t('campaigns.name')}</li>
                 <li>Company</li>
                 <li>Notes</li>
               </ul>
@@ -178,7 +179,7 @@ export default function Help() {
       )
     },
     {
-      id: 'companies',
+      id: {t('companies.companies')},
       title: 'Companies Database',
       icon: '🏢',
       content: (
@@ -194,7 +195,7 @@ export default function Help() {
               <ul>
                 <li>Company Name (required)</li>
                 <li>Website</li>
-                <li>Industry</li>
+                <li>{t('companies.industry')}</li>
                 <li>Contact Email</li>
                 <li>Description/Notes</li>
               </ul>
@@ -262,7 +263,7 @@ export default function Help() {
 
           <h4>Managing Your Subscription:</h4>
           <ol>
-            <li>Go to Settings and scroll to "Subscription & Billing"</li>
+            <li>Go to Settings and scroll to {t('settings.subscription')}</li>
             <li>View your current plan and usage</li>
             <li>Click upgrade buttons to change plans</li>
             <li>Click "Manage Subscription" to update payment method or cancel</li>
@@ -279,7 +280,7 @@ export default function Help() {
     },
     {
       id: 'settings',
-      title: 'Settings',
+      title: {t('settings.title')},
       icon: '⚙️',
       content: (
         <>
@@ -443,6 +444,7 @@ Best regards,
 
           <div className="faq-item">
             <h4>Can I import contacts from a CSV file?</h4>
+import { useLanguage } from '../contexts/LanguageContext'
             <p>CSV import is coming soon! Currently, you can add contacts manually through Contact Lists.</p>
           </div>
 

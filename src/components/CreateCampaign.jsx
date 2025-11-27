@@ -3,9 +3,11 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
 import { sendCampaign } from '../lib/campaignSender'
+import { useLanguage } from '../contexts/LanguageContext'
 import '../styles/CreateCampaign.css'
 
 export default function CreateCampaign() {
+  const { t } = useLanguage()
   const { user } = useAuth()
   const navigate = useNavigate()
   const [currentStep, setCurrentStep] = useState(1)
@@ -316,7 +318,7 @@ export default function CreateCampaign() {
       case 1:
         return (
           <div className="step-content">
-            <h3>Campaign Details</h3>
+            <h3>{t('createCampaign.campaignDetails')}</h3>
             <p className="step-description">Let's start with the basics of your campaign</p>
 
             <div className="form-group">
@@ -687,7 +689,7 @@ export default function CreateCampaign() {
 
             <div className="review-card">
               <div className="review-section">
-                <h4>Campaign Details</h4>
+                <h4>{t('createCampaign.campaignDetails')}</h4>
                 <div className="review-item">
                   <span>Name:</span>
                   <strong>{formData.name}</strong>
@@ -715,7 +717,7 @@ export default function CreateCampaign() {
               </div>
 
               <div className="review-section">
-                <h4>Recipients</h4>
+                <h4>{t('dashboard.recipients')}</h4>
                 <div className="review-item">
                   <span>Source:</span>
                   <strong>Contact List</strong>
@@ -762,7 +764,7 @@ export default function CreateCampaign() {
   return (
     <div className="page-container">
       <div className="wizard-header">
-        <h2 className="page-title">Create New Campaign</h2>
+        <h2 className="page-title">{t('createCampaign.title')}</h2>
         <div className="step-indicator">Step {currentStep} of {totalSteps}</div>
       </div>
 
@@ -776,9 +778,7 @@ export default function CreateCampaign() {
         <button
           onClick={() => navigate('/')}
           className="cancel-btn"
-        >
-          Cancel
-        </button>
+        >{t('common.cancel')}</button>
 
         <div className="nav-buttons">
           {currentStep > 1 && (
@@ -805,7 +805,7 @@ export default function CreateCampaign() {
               className="primary-btn send-btn"
               disabled={loading}
             >
-              {loading ? 'Sending...' : formData.sendDate ? 'Schedule Campaign' : 'Send Campaign'}
+              {loading ? {t('dashboard.sending')} : formData.sendDate ? 'Schedule Campaign' : 'Send Campaign'}
             </button>
           )}
         </div>

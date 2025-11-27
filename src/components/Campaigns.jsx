@@ -5,9 +5,11 @@ import { useAuth } from '../hooks/useAuth'
 import { useSubscription } from '../contexts/SubscriptionContext'
 import { sendCampaign } from '../lib/campaignSender'
 import UpgradePrompt from './UpgradePrompt'
+import { useLanguage } from '../contexts/LanguageContext'
 import '../styles/Campaigns.css'
 
 export default function Campaigns() {
+  const { t } = useLanguage()
   const { user } = useAuth()
   const { currentPlan, canCreateCampaign } = useSubscription()
   const navigate = useNavigate()
@@ -113,16 +115,16 @@ export default function Campaigns() {
       <div className="filter-bar">
         <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="filter-select">
           <option value="all">All Statuses</option>
-          <option value="running">Running</option>
-          <option value="completed">Completed</option>
+          <option value="running">{t('dashboard.runningCampaigns')}</option>
+          <option value="completed">{t('dashboard.completedCampaigns')}</option>
           <option value="not-started">Not Started</option>
-          <option value="paused">Paused</option>
+          <option value="paused">{t('campaigns.paused')}</option>
         </select>
         <input
           type="text"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Search campaigns..."
+          placeholder={t('campaigns.searchPlaceholder')}
           className="search-input"
         />
       </div>
@@ -182,7 +184,7 @@ export default function Campaigns() {
                       fontSize: '0.85rem',
                       color: '#856404'
                     }}>
-                      ⏳ Expires in {expirationInfo.daysRemaining} {expirationInfo.daysRemaining === 1 ? 'day' : 'days'}
+                      ⏳ Expires in {expirationInfo.daysRemaining} {expirationInfo.daysRemaining === 1 ? 'day' : {t('dashboard.days')}}
                     </div>
                   )}
                 </div>
@@ -196,11 +198,11 @@ export default function Campaigns() {
                       className="primary-btn"
                       disabled={sendingCampaignId === campaign.id}
                     >
-                      {sendingCampaignId === campaign.id ? 'Sending...' : 'Send Now'}
+                      {sendingCampaignId === campaign.id ? {t('dashboard.sending')} : 'Send Now'}
                     </button>
                   )}
                   {campaign.status === 'running' && (
-                    <span className="sending-indicator">Sending...</span>
+                    <span className="sending-indicator">{t('dashboard.sending')}</span>
                   )}
                   {expirationInfo.isExpired && (
                     <span style={{ fontSize: '0.9rem', color: '#6c757d' }}>

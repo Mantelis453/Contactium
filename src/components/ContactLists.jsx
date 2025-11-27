@@ -3,9 +3,11 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
 import { useSubscription } from '../contexts/SubscriptionContext'
+import { useLanguage } from '../contexts/LanguageContext'
 import '../styles/ContactLists.css'
 
 export default function ContactLists() {
+  const { t } = useLanguage()
   const { user } = useAuth()
   const navigate = useNavigate()
   const { subscription } = useSubscription()
@@ -153,7 +155,7 @@ export default function ContactLists() {
   return (
     <div className="page-container">
       <div className="page-header">
-        <h2 className="page-title">Contact Lists</h2>
+        <h2 className="page-title">{t('contactLists.title')}</h2>
         <button
           onClick={handleNewListClick}
           className="primary-btn"
@@ -191,9 +193,7 @@ export default function ContactLists() {
                     onClick={() => navigate(`/contact-lists/${list.id}`)}
                     className="view-btn"
                     title="View and manage contacts"
-                  >
-                    View
-                  </button>
+                  >{t('dashboard.view')}</button>
                   <button
                     onClick={() => deleteList(list.id, list.name)}
                     className="delete-btn-icon"
@@ -211,13 +211,13 @@ export default function ContactLists() {
               <div className="list-stats">
                 <div className="stat">
                   <span className="stat-value">{list.contactCount}</span>
-                  <span className="stat-label">Contacts</span>
+                  <span className="stat-label">{t('contactLists.contacts')}</span>
                 </div>
                 <div className="stat">
                   <span className="stat-value">
                     {new Date(list.created_at).toLocaleDateString()}
                   </span>
-                  <span className="stat-label">Created</span>
+                  <span className="stat-label">{t('campaigns.createdAt')}</span>
                 </div>
               </div>
             </div>
@@ -267,15 +267,13 @@ export default function ContactLists() {
               <button
                 onClick={() => setShowCreateModal(false)}
                 className="secondary-btn"
-              >
-                Cancel
-              </button>
+              >{t('common.cancel')}</button>
               <button
                 onClick={createList}
                 disabled={creating}
                 className="primary-btn"
               >
-                {creating ? 'Creating...' : 'Create List'}
+                {creating ? {t('createCampaign.creating')} : 'Create List'}
               </button>
             </div>
           </div>

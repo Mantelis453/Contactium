@@ -3,9 +3,11 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
 import { sendCampaign } from '../lib/campaignSender'
+import { useLanguage } from '../contexts/LanguageContext'
 import '../styles/CampaignDetails.css'
 
 export default function CampaignDetails() {
+  const { t } = useLanguage()
   const { id } = useParams()
   const navigate = useNavigate()
   const { user } = useAuth()
@@ -72,7 +74,7 @@ export default function CampaignDetails() {
 
       if (companyIds.length > 0) {
         const { data: companies } = await supabase
-          .from('companies')
+          .from({t('companies.companies')})
           .select('id, company_name, email, activity, employees, address')
           .in('id', companyIds)
 
@@ -356,7 +358,7 @@ export default function CampaignDetails() {
         </div>
       ) : daysRemaining <= 7 && (
         <div className="info-box" style={{ marginBottom: '1rem', backgroundColor: '#fff3cd', borderColor: '#ffc107', color: '#856404' }}>
-          ℹ️ This campaign will expire in {daysRemaining} {daysRemaining === 1 ? 'day' : 'days'}. Campaigns are automatically deleted 30 days after creation.
+          ℹ️ This campaign will expire in {daysRemaining} {daysRemaining === 1 ? 'day' : {t('dashboard.days')}}. Campaigns are automatically deleted 30 days after creation.
         </div>
       )}
 
@@ -365,7 +367,7 @@ export default function CampaignDetails() {
         <h3>Campaign Information</h3>
         <div className="info-grid">
           <div className="info-item">
-            <label>Status</label>
+            <label>{t('dashboard.status')}</label>
             <span className={`status-badge ${campaign.status}`} style={{backgroundColor: getStatusColor(campaign.status)}}>
               {campaign.status}
             </span>
@@ -375,7 +377,7 @@ export default function CampaignDetails() {
             <span>{campaign.category || 'General'}</span>
           </div>
           <div className="info-item">
-            <label>Created</label>
+            <label>{t('campaigns.createdAt')}</label>
             <span>{formatDate(campaign.created_at)}</span>
           </div>
           <div className="info-item">
@@ -480,9 +482,9 @@ export default function CampaignDetails() {
             <thead>
               <tr>
                 <th>Company</th>
-                <th>Email</th>
+                <th>{t('companies.email')}</th>
                 <th>Activity</th>
-                <th>Status</th>
+                <th>{t('dashboard.status')}</th>
                 <th>Sent At</th>
               </tr>
             </thead>
@@ -516,7 +518,7 @@ export default function CampaignDetails() {
             className="primary-btn"
             disabled={sendingCampaign}
           >
-            {sendingCampaign ? 'Sending...' : campaign.status === 'completed' ? '🔄 Send Again' : 'Send Campaign Now'}
+            {sendingCampaign ? {t('dashboard.sending')} : campaign.status === 'completed' ? '🔄 Send Again' : 'Send Campaign Now'}
           </button>
         )}
         {!isExpired && campaign.status === 'running' && (
@@ -526,7 +528,7 @@ export default function CampaignDetails() {
               className="primary-btn"
               disabled={sendingCampaign}
             >
-              {sendingCampaign ? 'Sending...' : '▶️ Continue Sending'}
+              {sendingCampaign ? {t('dashboard.sending')} : '▶️ Continue Sending'}
             </button>
             <button
               onClick={async () => {

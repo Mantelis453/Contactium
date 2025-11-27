@@ -1,9 +1,11 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
+import { useLanguage } from '../contexts/LanguageContext'
 import '../styles/SupportButton.css'
 
 export default function SupportButton({ variant = 'floating' }) {
+  const { t } = useLanguage()
   const { user } = useAuth()
   const [isOpen, setIsOpen] = useState(false)
   const [subject, setSubject] = useState('')
@@ -115,11 +117,9 @@ export default function SupportButton({ variant = 'floating' }) {
                   </div>
 
                   <div className="support-actions">
-                    <button type="button" className="secondary-btn" onClick={() => setIsOpen(false)}>
-                      Cancel
-                    </button>
+                    <button type="button" className="secondary-btn" onClick={() => setIsOpen(false)}>{t('common.cancel')}</button>
                     <button type="submit" className="primary-btn" disabled={sending}>
-                      {sending ? 'Sending...' : 'Send Message'}
+                      {sending ? {t('dashboard.sending')} : 'Send Message'}
                     </button>
                   </div>
                 </form>
@@ -200,11 +200,9 @@ export default function SupportButton({ variant = 'floating' }) {
                 </div>
 
                 <div className="support-actions">
-                  <button type="button" className="secondary-btn" onClick={() => setIsOpen(false)}>
-                    Cancel
-                  </button>
+                  <button type="button" className="secondary-btn" onClick={() => setIsOpen(false)}>{t('common.cancel')}</button>
                   <button type="submit" className="primary-btn" disabled={sending}>
-                    {sending ? 'Sending...' : 'Send Message'}
+                    {sending ? {t('dashboard.sending')} : 'Send Message'}
                   </button>
                 </div>
               </form>

@@ -2,9 +2,11 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
+import { useLanguage } from '../contexts/LanguageContext'
 import '../styles/ContactListDetail.css'
 
 export default function ContactListDetail() {
+  const { t } = useLanguage()
   const { listId } = useParams()
   const navigate = useNavigate()
   const { user } = useAuth()
@@ -163,12 +165,12 @@ export default function ContactListDetail() {
           <table className="contacts-table">
             <thead>
               <tr>
-                <th>Name</th>
-                <th>Email</th>
+                <th>{t('campaigns.name')}</th>
+                <th>{t('companies.email')}</th>
                 <th>Company</th>
                 <th>Notes</th>
                 <th>Added</th>
-                <th>Actions</th>
+                <th>{t('dashboard.actions')}</th>
               </tr>
             </thead>
             <tbody>
@@ -187,9 +189,7 @@ export default function ContactListDetail() {
                     <button
                       onClick={() => deleteContact(contact.id, contact.email)}
                       className="delete-btn-small"
-                    >
-                      Delete
-                    </button>
+                    >{t('contactLists.delete')}</button>
                   </td>
                 </tr>
               ))}
@@ -225,7 +225,7 @@ export default function ContactListDetail() {
               </div>
 
               <div className="form-group">
-                <label>Name</label>
+                <label>{t('campaigns.name')}</label>
                 <input
                   type="text"
                   value={newContact.name}
@@ -241,7 +241,7 @@ export default function ContactListDetail() {
                   type="text"
                   value={newContact.company}
                   onChange={(e) => setNewContact({ ...newContact, company: e.target.value })}
-                  placeholder="Company Name"
+                  placeholder={t('companies.companyName')}
                   className="form-input"
                 />
               </div>
@@ -262,9 +262,7 @@ export default function ContactListDetail() {
               <button
                 onClick={() => setShowAddModal(false)}
                 className="secondary-btn"
-              >
-                Cancel
-              </button>
+              >{t('common.cancel')}</button>
               <button
                 onClick={addContact}
                 disabled={adding}
