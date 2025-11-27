@@ -1,12 +1,14 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { useSubscription } from '../contexts/SubscriptionContext'
+import { useLanguage } from '../contexts/LanguageContext'
 import SupportButton from './SupportButton'
 import '../styles/Layout.css'
 
 export default function Layout({ children }) {
   const { user, signOut } = useAuth()
   const { currentPlan, canCreateCampaign, getCampaignCount } = useSubscription()
+  const { language, setLanguage, t } = useLanguage()
   const location = useLocation()
   const navigate = useNavigate()
 
@@ -16,7 +18,7 @@ export default function Layout({ children }) {
     e.preventDefault()
     const campaignCount = await getCampaignCount()
     if (!canCreateCampaign(campaignCount)) {
-      alert(`Campaign limit reached! You have ${campaignCount} of ${currentPlan?.campaignLimit} campaigns. Upgrade your plan to create more campaigns.`)
+      alert(`${t('dashboard.campaignLimitReached')} ${campaignCount} ${t('dashboard.campaignLimitOf')} ${currentPlan?.campaignLimit} ${t('dashboard.campaignLimitUpgrade')}`)
       navigate('/settings')
     } else {
       navigate('/create')
@@ -33,48 +35,64 @@ export default function Layout({ children }) {
               to="/"
               className={`nav-btn ${isActive('/') ? 'active' : ''}`}
             >
-              Dashboard
+              {t('nav.dashboard')}
             </Link>
             <Link
               to="/campaigns"
               className={`nav-btn ${isActive('/campaigns') ? 'active' : ''}`}
             >
-              Campaigns
+              {t('nav.campaigns')}
             </Link>
             <a
               href="/create"
               onClick={handleCreateClick}
               className={`nav-btn ${isActive('/create') ? 'active' : ''}`}
             >
-              Create
+              {t('common.create')}
             </a>
             <Link
               to="/companies"
               className={`nav-btn ${isActive('/companies') ? 'active' : ''}`}
             >
-              Companies
+              {t('nav.companies')}
             </Link>
             <Link
               to="/contact-lists"
               className={`nav-btn ${isActive('/contact-lists') || location.pathname.startsWith('/contact-lists/') ? 'active' : ''}`}
             >
-              Contact Lists
+              {t('nav.contacts')}
             </Link>
             <Link
               to="/settings"
               className={`nav-btn ${isActive('/settings') ? 'active' : ''}`}
             >
-              Settings
+              {t('nav.settings')}
             </Link>
             <Link
               to="/help"
               className={`nav-btn ${isActive('/help') ? 'active' : ''}`}
             >
-              Help
+              {t('nav.help')}
             </Link>
+
+            <div className="language-switcher">
+              <button
+                onClick={() => setLanguage('en')}
+                className={`lang-btn ${language === 'en' ? 'active' : ''}`}
+              >
+                EN
+              </button>
+              <button
+                onClick={() => setLanguage('lt')}
+                className={`lang-btn ${language === 'lt' ? 'active' : ''}`}
+              >
+                LT
+              </button>
+            </div>
+
             <span className="user-email">{user?.email}</span>
             <button onClick={signOut} className="signout-btn">
-              Sign Out
+              {t('nav.signOut')}
             </button>
           </div>
         </div>

@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { Analytics } from '@vercel/analytics/react'
 import { useAuth } from './hooks/useAuth'
 import { SubscriptionProvider } from './contexts/SubscriptionContext'
+import { LanguageProvider } from './contexts/LanguageContext'
 import LandingPage from './components/LandingPage'
 import Auth from './components/Auth'
 import PrivacyPolicy from './components/PrivacyPolicy'
@@ -33,41 +34,45 @@ function App() {
 
   if (!user) {
     return (
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<LandingPage />} />
-          <Route path="/auth" element={<Auth />} />
-          <Route path="/privacy" element={<PrivacyPolicy />} />
-          <Route path="/terms" element={<TermsOfService />} />
-          <Route path="/cookies" element={<CookiePolicy />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-        <Analytics />
-      </BrowserRouter>
+      <LanguageProvider>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/" element={<LandingPage />} />
+            <Route path="/auth" element={<Auth />} />
+            <Route path="/privacy" element={<PrivacyPolicy />} />
+            <Route path="/terms" element={<TermsOfService />} />
+            <Route path="/cookies" element={<CookiePolicy />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+          <Analytics />
+        </BrowserRouter>
+      </LanguageProvider>
     )
   }
 
   return (
-    <BrowserRouter>
-      <SubscriptionProvider>
-        <Layout>
-          <Routes>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/campaigns" element={<Campaigns />} />
-            <Route path="/campaigns/:id" element={<CampaignDetails />} />
-            <Route path="/create" element={<CreateCampaign />} />
-            <Route path="/companies" element={<Companies />} />
-            <Route path="/contact-lists" element={<ContactLists />} />
-            <Route path="/contact-lists/:listId" element={<ContactListDetail />} />
-            <Route path="/settings" element={<Settings />} />
-            <Route path="/help" element={<Help />} />
-            <Route path="/admin" element={<Admin />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </Layout>
-      </SubscriptionProvider>
-      <Analytics />
-    </BrowserRouter>
+    <LanguageProvider>
+      <BrowserRouter>
+        <SubscriptionProvider>
+          <Layout>
+            <Routes>
+              <Route path="/" element={<Dashboard />} />
+              <Route path="/campaigns" element={<Campaigns />} />
+              <Route path="/campaigns/:id" element={<CampaignDetails />} />
+              <Route path="/create" element={<CreateCampaign />} />
+              <Route path="/companies" element={<Companies />} />
+              <Route path="/contact-lists" element={<ContactLists />} />
+              <Route path="/contact-lists/:listId" element={<ContactListDetail />} />
+              <Route path="/settings" element={<Settings />} />
+              <Route path="/help" element={<Help />} />
+              <Route path="/admin" element={<Admin />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </Layout>
+        </SubscriptionProvider>
+        <Analytics />
+      </BrowserRouter>
+    </LanguageProvider>
   )
 }
 
