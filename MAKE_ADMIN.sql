@@ -2,6 +2,9 @@
 --
 -- Run this SQL in your Supabase SQL Editor (https://supabase.com/dashboard/project/YOUR_PROJECT/sql)
 -- Replace YOUR_EMAIL_HERE with your actual email address
+--
+-- Note: The RLS policies have been fixed to prevent infinite recursion.
+-- Users can now check their own admin status without triggering circular references.
 
 -- Step 1: Find your user ID
 SELECT id, email, created_at
