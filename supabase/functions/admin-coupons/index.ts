@@ -65,24 +65,45 @@ Deno.serve(async (req) => {
           )
         }
 
-        const result = await createPromotionCode({
-          code,
-          percentOff,
-          amountOff,
-          duration: duration || 'once',
-          durationInMonths,
-          maxRedemptions,
-          expiresAt
-        })
+        try {
+          console.log('[Admin Coupons] Creating promotion code:', code)
+          const result = await createPromotionCode({
+            code,
+            percentOff,
+            amountOff,
+            duration: duration || 'once',
+            durationInMonths,
+            maxRedemptions,
+            expiresAt
+          })
 
-        return new Response(
-          JSON.stringify({
-            success: true,
-            message: `Coupon code "${code}" created successfully`,
-            data: result
-          }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        )
+          console.log('[Admin Coupons] Promotion code created successfully')
+          return new Response(
+            JSON.stringify({
+              success: true,
+              message: `Coupon code "${code}" created successfully`,
+              data: result
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        } catch (createError: any) {
+          console.error('[Admin Coupons] Error creating promotion code:', createError.message)
+
+          // Handle duplicate coupon code error
+          if (createError.message?.includes('already exists')) {
+            return new Response(
+              JSON.stringify({
+                error: `Coupon code "${code}" already exists in Stripe`,
+                message: 'Please use a different coupon code or deactivate the existing one in Stripe Dashboard',
+                stripeError: createError.message
+              }),
+              { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            )
+          }
+
+          // Handle other Stripe errors
+          throw createError
+        }
       }
 
       case 'validate': {
