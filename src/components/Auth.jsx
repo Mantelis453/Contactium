@@ -1,8 +1,12 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { useLanguage } from '../contexts/LanguageContext'
 import '../styles/Auth.css'
 
 export default function Auth() {
+  const { t, language, setLanguage } = useLanguage()
+  const navigate = useNavigate()
   const [isLogin, setIsLogin] = useState(true)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -51,7 +55,7 @@ export default function Auth() {
         if (signUpError) throw signUpError
 
         if (data.user && !data.session) {
-          setSuccess('Check your email for the confirmation link!')
+          setSuccess(t('auth.checkEmailConfirmation'))
         }
       }
     } catch (err) {
@@ -65,8 +69,24 @@ export default function Auth() {
     <div className="auth-container">
       <div className="auth-card">
         <div className="auth-header">
-          <h1>{isLogin ? 'Welcome Back' : 'Create Account'}</h1>
-          <p>{isLogin ? 'Sign in to your account' : 'Start your cold email campaigns'}</p>
+          <div className="auth-header-top">
+            <h1>{isLogin ? t('auth.welcomeBack') : t('auth.createAccount')}</h1>
+            <div className="language-switcher">
+              <button
+                onClick={() => setLanguage('en')}
+                className={`lang-btn ${language === 'en' ? 'active' : ''}`}
+              >
+                EN
+              </button>
+              <button
+                onClick={() => setLanguage('lt')}
+                className={`lang-btn ${language === 'lt' ? 'active' : ''}`}
+              >
+                LT
+              </button>
+            </div>
+          </div>
+          <p>{isLogin ? t('auth.signInSubtitle') : t('auth.createAccountSubtitle')}</p>
         </div>
 
         {error && <div className="error-message">{error}</div>}
@@ -86,17 +106,17 @@ export default function Auth() {
               <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z" fill="#EA4335"/>
             </g>
           </svg>
-          Continue with Google
+          {t('auth.continueWithGoogle')}
         </button>
 
         <div className="divider">
-          <span>or</span>
+          <span>{t('auth.or')}</span>
         </div>
 
         <form onSubmit={handleSubmit} className="auth-form">
 
           <div className="form-group">
-            <label htmlFor="email">Email</label>
+            <label htmlFor="email">{t('auth.email')}</label>
             <input
               id="email"
               type="email"
@@ -108,7 +128,7 @@ export default function Auth() {
           </div>
 
           <div className="form-group">
-            <label htmlFor="password">Password</label>
+            <label htmlFor="password">{t('auth.password')}</label>
             <input
               id="password"
               type="password"
@@ -121,13 +141,16 @@ export default function Auth() {
           </div>
 
           <button type="submit" className="submit-btn" disabled={loading}>
-            {loading ? 'Processing...' : (isLogin ? 'Sign In' : 'Sign Up')}
+            {loading ? `${t('common.loading')}` : (isLogin ? t('auth.signIn') : t('auth.signUp'))}
           </button>
         </form>
 
         <div className="auth-footer">
           <button onClick={() => setIsLogin(!isLogin)} className="toggle-btn">
-            {isLogin ? "Don't have an account? Sign up" : 'Already have an account? Sign in'}
+            {isLogin ? t('auth.dontHaveAccount') : t('auth.alreadyHaveAccount')}
+          </button>
+          <button onClick={() => navigate('/')} className="back-btn">
+            ← {t('auth.backToLanding')}
           </button>
         </div>
       </div>
