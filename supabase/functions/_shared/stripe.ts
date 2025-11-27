@@ -510,3 +510,30 @@ export async function createPromotionCode(params: {
     throw error
   }
 }
+
+// List all promotion codes from Stripe
+export async function listPromotionCodes(limit = 100) {
+  try {
+    const promotionCodes = await stripe.promotionCodes.list({
+      limit,
+      expand: ['data.coupon']
+    })
+
+    return promotionCodes.data.map(promo => ({
+      id: promo.id,
+      code: promo.code,
+      active: promo.active,
+      couponId: promo.coupon.id,
+      percentOff: (promo.coupon as any).percent_off,
+      amountOff: (promo.coupon as any).amount_off,
+      duration: (promo.coupon as any).duration,
+      maxRedemptions: promo.max_redemptions,
+      timesRedeemed: promo.times_redeemed,
+      expiresAt: promo.expires_at,
+      created: promo.created
+    }))
+  } catch (error) {
+    console.error('Error listing promotion codes:', error)
+    throw error
+  }
+}

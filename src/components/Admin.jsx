@@ -21,7 +21,8 @@ export default function Admin() {
   const [userSearch, setUserSearch] = useState('')
 
   // Coupon state
-  const [coupons, setCoupons] = useState([])
+  const [coupons, setCoupons] = useState([]) // Stripe coupons
+  const [redemptions, setRedemptions] = useState([]) // Redemption history
   const [couponForm, setCouponForm] = useState({
     code: '',
     type: 'percent',
@@ -198,7 +199,8 @@ export default function Admin() {
       console.log('[Admin] Coupons response:', { ok: response.ok, status: response.status, data })
 
       if (response.ok) {
-        setCoupons(data.data || [])
+        setCoupons(data.coupons || [])
+        setRedemptions(data.redemptions || [])
         setCouponMessage({ type: '', text: '' }) // Clear any previous errors
       } else {
         const errorMsg = data.details || data.error || 'Unknown error'
@@ -837,7 +839,57 @@ ON CONFLICT (user_id) DO UPDATE SET role = 'admin';`}
           </div>
 
           <div className="admin-section">
-            <h3>Coupon Redemption History</h3>
+            <h3>Active Coupon Codes</h3>
+            <p className="section-description">All coupon codes created in Stripe</p>
+            <div className="admin-table-container">
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th>Code</th>
+                    <th>Discount</th>
+                    <th>Duration</th>
+                    <th>Status</th>
+                    <th>Times Used</th>
+                    <th>Max Uses</th>
+                    <th>Created</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {coupons.length === 0 ? (
+                    <tr>
+                      <td colSpan="7" style={{ textAlign: 'center', padding: '2rem' }}>
+                        No coupons created yet
+                      </td>
+                    </tr>
+                  ) : (
+                    coupons.map((coupon, index) => (
+                      <tr key={index}>
+                        <td><code style={{ fontWeight: 'bold' }}>{coupon.code}</code></td>
+                        <td>
+                          {coupon.percentOff ? `${coupon.percentOff}% off` : `€${(coupon.amountOff / 100).toFixed(2)} off`}
+                        </td>
+                        <td>
+                          <span style={{ textTransform: 'capitalize' }}>{coupon.duration}</span>
+                        </td>
+                        <td>
+                          <span className={`admin-status-dot ${coupon.active ? 'active' : ''}`}>
+                            {coupon.active ? 'Active' : 'Inactive'}
+                          </span>
+                        </td>
+                        <td>{coupon.timesRedeemed || 0}</td>
+                        <td>{coupon.maxRedemptions || 'Unlimited'}</td>
+                        <td>{new Date(coupon.created * 1000).toLocaleDateString()}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="admin-section">
+            <h3>Redemption History</h3>
+            <p className="section-description">Coupon codes redeemed by users in your app</p>
             <div className="admin-table-container">
               <table className="admin-table">
                 <thead>
@@ -849,21 +901,21 @@ ON CONFLICT (user_id) DO UPDATE SET role = 'admin';`}
                   </tr>
                 </thead>
                 <tbody>
-                  {coupons.length === 0 ? (
+                  {redemptions.length === 0 ? (
                     <tr>
                       <td colSpan="4" style={{ textAlign: 'center', padding: '2rem' }}>
                         No coupon redemptions yet
                       </td>
                     </tr>
                   ) : (
-                    coupons.map((coupon, index) => (
+                    redemptions.map((redemption, index) => (
                       <tr key={index}>
-                        <td><code>{coupon.coupon_code}</code></td>
+                        <td><code>{redemption.coupon_code}</code></td>
                         <td>
-                          {coupon.discount_percent ? `${coupon.discount_percent}%` : `€${coupon.discount_amount}`}
+                          {redemption.discount_percent ? `${redemption.discount_percent}%` : `€${redemption.discount_amount}`}
                         </td>
-                        <td><code>{coupon.user_id.substring(0, 8)}...</code></td>
-                        <td>{formatDate(coupon.redeemed_at)}</td>
+                        <td><code>{redemption.user_id.substring(0, 8)}...</code></td>
+                        <td>{formatDate(redemption.redeemed_at)}</td>
                       </tr>
                     ))
                   )}

@@ -1,6 +1,6 @@
 import { corsHeaders } from '../_shared/cors.ts'
 import { createSupabaseClient } from '../_shared/supabase.ts'
-import { createPromotionCode, validateCoupon } from '../_shared/stripe.ts'
+import { createPromotionCode, validateCoupon, listPromotionCodes } from '../_shared/stripe.ts'
 
 Deno.serve(async (req) => {
   // Handle CORS preflight
@@ -146,38 +146,49 @@ Deno.serve(async (req) => {
       }
 
       case 'list': {
-        console.log('[Admin Coupons] Fetching redemption history...')
-        // Get redemption history from database
-        const { data: redemptions, error } = await supabase
-          .from('coupon_redemptions')
-          .select('*')
-          .order('redeemed_at', { ascending: false })
-          .limit(100)
+        console.log('[Admin Coupons] Fetching coupons from Stripe and redemption history...')
 
-        if (error) {
-          console.error('[Admin Coupons] Error fetching redemptions:', {
-            message: error.message,
-            details: error.details,
-            hint: error.hint,
-            code: error.code
-          })
+        try {
+          // Get all promotion codes from Stripe
+          const stripeCoupons = await listPromotionCodes()
+          console.log('[Admin Coupons] Stripe coupons fetched:', stripeCoupons.length)
+
+          // Get redemption history from database
+          const { data: redemptions, error } = await supabase
+            .from('coupon_redemptions')
+            .select('*')
+            .order('redeemed_at', { ascending: false })
+            .limit(100)
+
+          if (error) {
+            console.error('[Admin Coupons] Error fetching redemptions:', {
+              message: error.message,
+              details: error.details,
+              hint: error.hint,
+              code: error.code
+            })
+          }
+
+          console.log('[Admin Coupons] Redemptions fetched:', redemptions?.length || 0)
+
           return new Response(
             JSON.stringify({
-              error: 'Failed to fetch coupon redemptions',
-              details: error.message
+              success: true,
+              coupons: stripeCoupons,
+              redemptions: redemptions || []
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        } catch (listError: any) {
+          console.error('[Admin Coupons] Error listing coupons:', listError.message)
+          return new Response(
+            JSON.stringify({
+              error: 'Failed to fetch coupons',
+              details: listError.message
             }),
             { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           )
         }
-
-        console.log('[Admin Coupons] Redemptions fetched:', redemptions?.length || 0)
-        return new Response(
-          JSON.stringify({
-            success: true,
-            data: redemptions || []
-          }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        )
       }
 
       default:
