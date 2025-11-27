@@ -1,11 +1,12 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useLanguage } from '../contexts/LanguageContext'
 import '../styles/LandingPage.css'
 
 export default function LandingPage() {
   const navigate = useNavigate()
+  const { language, setLanguage } = useLanguage()
   const [billingCycle, setBillingCycle] = useState('monthly')
-  const [language, setLanguage] = useState('en')
 
   const translations = {
     en: {
