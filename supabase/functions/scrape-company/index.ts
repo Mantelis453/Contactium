@@ -1,5 +1,6 @@
 import { corsHeaders } from '../_shared/cors.ts'
 import { createSupabaseClient } from '../_shared/supabase.ts'
+import { checkPaidSubscription } from '../_shared/subscription.ts'
 
 // Extract emails from HTML content
 function extractEmails(html: string): string[] {
@@ -205,12 +206,42 @@ Deno.serve(async (req) => {
   const supabase = createSupabaseClient()
 
   try {
-    const { companyId, website, companyName, geminiApiKey } = await req.json()
+    const { companyId, website, companyName } = await req.json()
 
     if (!companyId) {
       return new Response(
         JSON.stringify({ error: 'Company ID is required' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // Get authenticated user
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+
+    if (authError || !user) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized. Please log in.' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // Check if user has paid subscription
+    const subscriptionCheck = await checkPaidSubscription(user.id)
+
+    if (!subscriptionCheck.hasAccess) {
+      return new Response(
+        JSON.stringify({ error: subscriptionCheck.error || 'Access denied' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // Get centralized Gemini API key from environment
+    const geminiApiKey = Deno.env.get('GEMINI_API_KEY')
+
+    if (!geminiApiKey) {
+      return new Response(
+        JSON.stringify({ error: 'AI service is not configured. Please contact support.' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
@@ -256,9 +287,8 @@ Deno.serve(async (req) => {
 
     console.log(`Company data - Activity: ${companyData?.activity}, Industry: ${companyData?.industry}, Has website content: ${!!scrapeResult.textContent}`)
 
-    // Generate AI summary and tags if API key provided
-    if (geminiApiKey) {
-      if (scrapeResult.textContent && scrapeResult.textContent.length > 0) {
+    // Generate AI summary and tags
+    if (scrapeResult.textContent && scrapeResult.textContent.length > 0) {
         // Generate from website content
         console.log('Generating AI summary with Gemini 2.0 Flash...')
         businessSummary = await generateBusinessSummary(
@@ -278,26 +308,23 @@ Deno.serve(async (req) => {
         console.log(`AI generated ${aiTags.length} tags from website: ${aiTags.join(', ')}`)
         // Merge AI tags with activity tag, removing duplicates
         tags = [...new Set([...tags, ...aiTags])]
-      } else {
-        // Generate tags from company metadata when no website available
-        console.log('No website content. Generating tags from company metadata with Gemini 2.0 Flash...')
-        const companyInfo = `Company: ${companyName || 'Unknown'}\nActivity: ${companyData?.activity || 'N/A'}\nIndustry: ${companyData?.industry || 'N/A'}\nLocation: ${companyData?.location || 'N/A'}`
-
-        console.log(`Company info for AI: ${companyInfo}`)
-
-        const aiTags = await generateTags(
-          companyName || 'this company',
-          companyInfo,
-          `Company in ${companyData?.industry || companyData?.activity || 'general business'}`,
-          geminiApiKey
-        )
-
-        console.log(`AI generated ${aiTags.length} tags from metadata: ${aiTags.join(', ')}`)
-        // Merge AI tags with activity tag, removing duplicates
-        tags = [...new Set([...tags, ...aiTags])]
-      }
     } else {
-      console.log('No Gemini API key provided. Skipping AI tag generation.')
+      // Generate tags from company metadata when no website available
+      console.log('No website content. Generating tags from company metadata with Gemini 2.0 Flash...')
+      const companyInfo = `Company: ${companyName || 'Unknown'}\nActivity: ${companyData?.activity || 'N/A'}\nIndustry: ${companyData?.industry || 'N/A'}\nLocation: ${companyData?.location || 'N/A'}`
+
+      console.log(`Company info for AI: ${companyInfo}`)
+
+      const aiTags = await generateTags(
+        companyName || 'this company',
+        companyInfo,
+        `Company in ${companyData?.industry || companyData?.activity || 'general business'}`,
+        geminiApiKey
+      )
+
+      console.log(`AI generated ${aiTags.length} tags from metadata: ${aiTags.join(', ')}`)
+      // Merge AI tags with activity tag, removing duplicates
+      tags = [...new Set([...tags, ...aiTags])]
     }
 
     console.log(`Final tags to save: ${tags.join(', ')}`)

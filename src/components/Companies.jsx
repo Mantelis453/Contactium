@@ -179,26 +179,13 @@ export default function Companies() {
     try {
       setScrapingCompanyId(company.id)
 
-      // Get user's Gemini API key from settings
-      const { data: settings } = await supabase
-        .from('user_settings')
-        .select('gemini_api_key')
-        .single()
-
-      if (!settings?.gemini_api_key) {
-        alert('Please add your Gemini API key in Settings first')
-        setScrapingCompanyId(null)
-        return
-      }
-
       const hasWebsite = company.website && company.website.trim() !== ''
 
       const { data, error } = await supabase.functions.invoke('scrape-company', {
         body: {
           companyId: company.id,
           website: hasWebsite ? company.website : null,
-          companyName: company.company_name || company.name,
-          geminiApiKey: settings.gemini_api_key
+          companyName: company.company_name || company.name
         }
       })
 
@@ -238,24 +225,11 @@ export default function Companies() {
     try {
       setDeepScrapingCompanyId(company.id)
 
-      // Get user's Gemini API key from settings
-      const { data: settings } = await supabase
-        .from('user_settings')
-        .select('gemini_api_key')
-        .single()
-
-      if (!settings?.gemini_api_key) {
-        alert('Please add your Gemini API key in Settings first')
-        setDeepScrapingCompanyId(null)
-        return
-      }
-
       const { data, error } = await supabase.functions.invoke('deep-scrape-company', {
         body: {
           companyId: company.id,
           website: company.website,
-          companyName: company.company_name || company.name,
-          geminiApiKey: settings.gemini_api_key
+          companyName: company.company_name || company.name
         }
       })
 
@@ -365,23 +339,10 @@ ${details.employeeCount ? `👔 Employees: ~${details.employeeCount}` : ''}`
       setBatchProcessing(true)
       setBatchProgress('Starting batch processing...')
 
-      // Get user's Gemini API key from settings
-      const { data: settings } = await supabase
-        .from('user_settings')
-        .select('gemini_api_key')
-        .single()
-
-      if (!settings?.gemini_api_key) {
-        alert('Please add your Gemini API key in Settings first')
-        setBatchProcessing(false)
-        return
-      }
-
       setBatchProgress('Processing companies... This may take a few minutes.')
 
       const { data, error } = await supabase.functions.invoke('batch-tag-companies', {
         body: {
-          geminiApiKey: settings.gemini_api_key,
           limit: 100, // Process 100 companies at a time
           tagOnly: false // Process all companies (with or without websites)
         }

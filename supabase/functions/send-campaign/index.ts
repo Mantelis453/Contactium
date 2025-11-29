@@ -131,12 +131,12 @@ Deno.serve(async (req) => {
       }
     })
 
-    // 5. Get user's SMTP settings and Gemini API key
+    // 5. Get user's SMTP settings
     console.log('Loading user settings for user:', userId)
 
     const { data: userSettings, error: settingsError } = await supabase
       .from('user_settings')
-      .select('gemini_api_key, smtp_host, smtp_port, smtp_user, smtp_pass, smtp_from_email, smtp_from_name')
+      .select('smtp_host, smtp_port, smtp_user, smtp_pass, smtp_from_email, smtp_from_name')
       .eq('user_id', userId)
       .single()
 
@@ -152,7 +152,6 @@ Deno.serve(async (req) => {
     }
 
     console.log('User settings loaded:', {
-      hasGeminiKey: !!userSettings?.gemini_api_key,
       hasSmtpHost: !!userSettings?.smtp_host,
       hasSmtpUser: !!userSettings?.smtp_user,
       hasSmtpPass: !!userSettings?.smtp_pass,
@@ -160,10 +159,11 @@ Deno.serve(async (req) => {
       smtpPort: userSettings?.smtp_port
     })
 
-    const geminiApiKey = userSettings?.gemini_api_key || Deno.env.get('GEMINI_API_KEY')
+    // Get centralized Gemini API key from environment
+    const geminiApiKey = Deno.env.get('GEMINI_API_KEY')
 
     if (!geminiApiKey) {
-      throw new Error('Gemini API key not found. Please add it in Settings page.')
+      throw new Error('AI service is not configured. Please contact support.')
     }
 
     // Get SMTP settings from user settings or environment variables

@@ -1,5 +1,6 @@
 import { corsHeaders } from '../_shared/cors.ts'
 import { createSupabaseClient } from '../_shared/supabase.ts'
+import { checkPaidSubscription } from '../_shared/subscription.ts'
 
 // Extract emails from HTML
 function extractEmails(html: string): string[] {
@@ -537,7 +538,7 @@ Deno.serve(async (req) => {
   const supabase = createSupabaseClient()
 
   try {
-    const { companyId, website, companyName, geminiApiKey } = await req.json()
+    const { companyId, website, companyName } = await req.json()
 
     if (!companyId) {
       return new Response(
@@ -553,10 +554,33 @@ Deno.serve(async (req) => {
       )
     }
 
+    // Get authenticated user
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+
+    if (authError || !user) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized. Please log in.' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // Check if user has paid subscription
+    const subscriptionCheck = await checkPaidSubscription(user.id)
+
+    if (!subscriptionCheck.hasAccess) {
+      return new Response(
+        JSON.stringify({ error: subscriptionCheck.error || 'Access denied' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // Get centralized Gemini API key from environment
+    const geminiApiKey = Deno.env.get('GEMINI_API_KEY')
+
     if (!geminiApiKey) {
       return new Response(
-        JSON.stringify({ error: 'Gemini API key is required' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ error: 'AI service is not configured. Please contact support.' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
